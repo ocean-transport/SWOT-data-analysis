@@ -1,3 +1,21 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+This file contains routines for plotting SWOT data
+
+1st Author: Tatsu
+Date: First version: 1.23.2025
+
+Dependencies:
+    xarray
+    numpy
+    matplotlib
+    cartopy
+    cmocean
+"""
+
+
 import xarray as xr
 import os
 import numpy as np
@@ -13,9 +31,10 @@ import cartopy.io.shapereader as shpreader
 import cmocean.cm as cm
 
 
-
+##########################################################################################
 # A collection of quick and dirty scripts for Tatsu to use to look
-# at some initial results
+# at SWOT data
+##########################################################################################
 
 def load_bathymetry(zip_file_url):
     """
@@ -50,6 +69,7 @@ def load_bathymetry(zip_file_url):
         nei = shpreader.Reader(f, bbox=bbox)
         shp_dict[depth] = nei
     depths = np.array(depths)[::-1]  # sort from surface to bottom
+    
     return depths, shp_dict
 
 ##########################################################################################
@@ -72,7 +92,7 @@ if __name__ == "__main__":
 
 def remap_quality_flags(swath):
     """
-    A simple script to remap quality flags >:(
+    A simple script to remap quality flags to discrete values
     """
 
     if not "quality_flag" in swath:

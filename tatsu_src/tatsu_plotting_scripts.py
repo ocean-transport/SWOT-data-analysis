@@ -1,3 +1,21 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+This file contains routines for plotting SWOT data
+
+1st Author: Tatsu
+Date: First version: 1.23.2025
+
+Dependencies:
+    xarray
+    numpy
+    matplotlib
+    cartopy
+    cmocean
+"""
+
+
 import xarray as xr
 import os
 import numpy as np

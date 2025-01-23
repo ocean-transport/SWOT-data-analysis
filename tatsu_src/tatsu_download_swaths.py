@@ -1,3 +1,26 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+This file contains routines for manipulating SWOT SSH data.
+Based on the Jinbo Wang's SWOT-OpenToolkit code
+
+1st Author: Jinbo Wang
+2nd Author: Tatsu
+Date: First version: 11.15.2024
+
+Dependencies:
+    numpy
+    scipy
+    pylab
+    xarray
+    pyresample
+    json
+    s3fs
+    requests
+    h5netcdf
+"""
+
 import geopandas as gpd
 import shapely.geometry as geometry
 import paramiko

@@ -6,7 +6,7 @@ This file contains routines for manipulating SWOT SSH data.
 Based on the Jinbo Wang's SWOT-OpenToolkit code
 
 1st Author: Jinbo Wang
-Author: Tatsu
+2nd Author: Tatsu
 Date: First version: 11.15.2024
 
 Dependencies:
@@ -15,10 +15,6 @@ Dependencies:
     pylab
     xarray
     pyresample
-    json
-    s3fs
-    requests
-    h5netcdf
 """
 
 import numpy as np
@@ -35,7 +31,7 @@ import xrft
 
 def subset(data_in,lat_bounds):
     """
-    Subset data using Jinbo's script (pulled out of L2 class, see above)
+    Subset data using Jinbo's script (pulled out of L2 class in the SWOT_Open_Toolkit)
     
     Parameters
     ----------
@@ -59,7 +55,8 @@ def subset(data_in,lat_bounds):
     i1=np.where(np.abs(lat-l1)==np.abs(lat-l1).min())[0][0]
     
     # Flip order if swath is descending
-    if i0>i1:i0,i1=i1,i0
+    if i0>i1:
+        i0,i1=i1,i0
     
     # Return empty array if bounding indices are the same
     if i0==i1:

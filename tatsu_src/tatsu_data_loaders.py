@@ -1,3 +1,23 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+This file contains routines for opening locally-saved
+SWOT data.
+
+1st Author: Tatsu
+Date: First version: 1.23.2025
+
+Dependencies:
+    xarray
+    numpy
+    scipy
+    pylab
+    xarray
+    pyresample
+    
+"""
+
 import os
 import xarray as xr
 import tatsu_swot_utils as tatsu_swot
@@ -34,18 +54,15 @@ def load_cycle(path,cycle="002",pass_ids=None,fields=None,subset=False,lats=[-90
 
     Variables
     ---------
-    path: string
-    cycle: string
-    pass_ids:
-    fields: iterable or None
-    subset: Boolean
-    lats: iterable
+    path:          string
+    cycle:         string
+    pass_ids:      
+    fields:        iterable or None
+    subset:        Boolean
+    lats:          iterable
 
     Output
     ------
-
-    Dependencies:
-    ------------
 
     """
     # First check that the actual cycle is loaded..
