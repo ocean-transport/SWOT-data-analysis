@@ -11,19 +11,23 @@ import tatsu_swot_utils as tatsu_swot
 
 
 #*********************************************************************
-def find_swaths(sw_corner,ne_corner,path_to_sph_file="../../orbit_data/sph_science_swath.zip"):
+def find_swaths(sw_corner,ne_corner,path_to_sph_file="./orbit_data/sph_science_swath.zip"):
     """
-    Script based on Jinbo's code on the SWOT-OpenToolkit
+    Script based on Jinbo's code on the SWOT-OpenToolkit. This script uses the orbit shapefiles
+    stored in the "orbit_data" directory. 
 
     Variables
     -----
-    sw_corner: 
-    ne_corner: 
+    sw_corner:        list, list of 
+    ne_corner:        list, 
+    path_to_sph_file: string,
     
     Output
     -----
+    pass_IDs_list:    list,
     
     """
+    
     # Load the shapefile
     try:
         gdf_karin = gpd.read_file(path_to_sph_file)
@@ -57,16 +61,44 @@ def download_passes(pass_ID, cycle="001",remote_path="swot_products/l3_karin_nad
                     username = "tdmonkman@uchicago.edu", password = "2prSvl", \
                     subset=False, lat_lims=False, trim_suffix="trimmed"): 
     """
-    Script for downloading specific passes off of AVISO+ using sftp.
+    Script for downloading specific passes off of AVISO+ using sftp. This script will
+    establish a connection to the aviso ftp server using secure shell (the "s" in "sftp").
+    The specific aviso ftp server you are pulling data from is specified in the "hostname" 
+    variable. The path to the SWOT data on the aviso ftp server is given by "remote_path."
+    If you would like to change the version/release of the SWOT you will need to edit the 
+    remote path variable, assuming the data is on aviso. If you are changing the data release 
+    it would be good to edit the save path as well.
+
+    There are helper scripts to load in the cycle and specific product. See the DEMO at the 
+    bottom of this file.
+    
+    Some other notes:
     I'm establishing a new sftp connection for each file, in case of random
-    network issues.   
+    network issues. I've included use my username and password to make things smoother.
+
+    This script has some functionality to subset swaths by latitude and trim off the
+    northern / southern ends. I added a suffix, "trim_suffix," to add to the saved 
+    swath file name to specify that the swath has been modified.
     
     Variables
     -----
+    pass_ID:       string, numeric ID of specific pass you would like to download. 
+    cycle:         string, numeric ID of the cycle you would like to download. Expected to 
+                           contain 3 digits with leading zeros i.e. ("001", "002",...,"140")
+    remote_path:   string, path to SWOT data on aviso
+    save_path:     string, path to save files locally. I put my data a couple of levels up
+    hostname:      string, url to aviso ftp server
+    port:          int, network port to connect to on remote server
+    username:      string, aviso username
+    password:      string, aviso password
+    subset:        bool, If True, subset swath to only include data between the values specified in 
+                         "lat_lims". If False (default), download the entire swath
+    lat_lims:      list, list of integers specifying bounding latitudes of the swath when trimming
+    trim_suffix:   string, string to add to trimmed files to show that they are trimmed.
     
     Output
     -----
-    
+    Data is saved to "save_path"
     
     """
     # Get the SWOT release version you are trying to pull THIS IS HACKY FIX THIS
@@ -242,6 +274,7 @@ ne_corner = [30.0, -30.0]
 
 lat_lims = [sw_corner[1],ne_corner[1]]
 
+# Specify cycles you want to downnload
 # Cycles 001 - 016 are for the science orbit
 # cycles = [str(c_num).zfill(3) for c_num in range(1,17)]
 # Cycles 474 - 578 are from the 1-day repeat 
