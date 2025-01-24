@@ -1,0 +1,486 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "d10cd214-c8d4-49a8-ac1c-898e7516747f",
+   "metadata": {},
+   "source": [
+    "# Download SWOT swaths that intersect with a specific region\n",
+    "\n",
+    "### Here we'll use some scripts to download SWOT data in a specific region. \n",
+    "\n",
+    "- This notebook uses scripts from <code>tatsu_src/tatsu_download_swaths.py</code>, and is partially based on code taken from the [SWOT-OpenToolkit](https://github.com/SWOT-community/SWOT-OpenToolkit) developed by Jinbo Wang (Texas A&M).\n",
+    "- Note that we are using <code>paramiko</code> to directly pull swaths from the [AVISO](https://www.aviso.altimetry.fr/en/home.html) altimetry database using <code>sftp</code>. Limiting ourselves to sftp is a little inefficient, especially if we only want subsets of particular region, but it's more straightforward than fighting PO.DAAC and gives us access to the most up-to-date datasets.\n",
+    "- You can just use my login information, provided here, to access AVISO\n",
+    "- NOTE: As an example, I wrote this script to save L3 SWOT swaths to a folder in the base directory named \"<code>SWOT_L3</code>\", which has been added to the <code>.gitignore</code> file. You should change the save path to wherever is most convienent for you. If you save your files to a different directory on the main path remember to add the save directory to <code>.gitignore</code> to avoid problems with large files.\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "id": "dea8d123-66f1-46e7-9c79-c02a4751b1af",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "\"\"\"\n",
+    "Download SWOT swaths in a specific bounding box.\n",
+    "\n",
+    "Dependencies:\n",
+    "paramiko\n",
+    "numpy\n",
+    "xarray\n",
+    "\n",
+    "Author: Tatsu Monkman\n",
+    "Date: 2025-01-24\n",
+    "\"\"\"\n",
+    "import os\n",
+    "import time\n",
+    "\n",
+    "# Add the path to the Tatsu's swot download library\n",
+    "import sys\n",
+    "sys.path.append('../src/')\n",
+    "import tatsu_download_swaths as tatsu_download\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "8561e3b8-088c-44b7-b7af-6b4289b03c49",
+   "metadata": {},
+   "source": [
+    "## Specify AVISO login info to access AVISO via sftp\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "id": "65ac9565-baa2-452b-9a50-4b448f1e5be4",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Define sftp connection parameters. Here I am just using my own login info. \n",
+    "# Feel free to change, but you should probable leave the \"port\" the same\n",
+    "ssh_kwargs = {\n",
+    "              \"hostname\":\"ftp-access.aviso.altimetry.fr\",\n",
+    "              \"port\": 2221,\n",
+    "              \"username\":\"tdmonkman@uchicago.edu\",\n",
+    "              \"password\":\"2prSvl\"\n",
+    "            }\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "b2696bab-e8bc-4c57-8c10-dfbb93adc56d",
+   "metadata": {},
+   "source": [
+    "## Define lat/lon bounds for the region you are interested in"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "id": "709f1cdf-614a-43c0-9263-bd8be5174f29",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Define bounding domain, here I'm downloading some swaths \n",
+    "# over the Kuroshio east of Japan.\n",
+    "\n",
+    "# East of Japan (Kuroshio-ish)\n",
+    "kuroshio_sw_corner = [120,10]\n",
+    "kuroshio_ne_corner = [180,50]\n",
+    "\n",
+    "# NOTE: I am specifically recording the Northern and Southern edges\n",
+    "# of the bounding box here for later use when I subset the data.\n",
+    "# I find it helpful to add them to a new list to keep everything \n",
+    "# organized.\n",
+    "kuroshio_lat_lims = [kuroshio_sw_corner[1],kuroshio_ne_corner[1]]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "02cae9bd-5e21-4d5f-a884-faafae5edb0b",
+   "metadata": {},
+   "source": [
+    "## Specify the cycles you want to download\n",
+    "\n",
+    "Key points:\n",
+    "- SWOT data is organized by orbit \"cycle\" on AVISO. Each numbered cycle corresponds to one full traversal of the individual swaths that make up a complete orbital cycle. Cycles numbered 474-578 correspond to 1-day repeat orbits made during the Cal/Val phase, while cycles numbered 001-016+ correspond to orbits made during the science phase. Note you need to keep the leading zeros on the labels for the low-numbered cycles since the filenames are use standardized lengths..\n",
+    "- Each cycle is subdivided into individual \"passes\" which correspond to one North-South or South-North swath of satellite data. Each pass is given an idenitication number, which can be used to find specific swaths you are interested in. For example, the orbital shape files in  <code>../orbit_data/</code> divide the orbits by \"PASS_ID\", which is just the pass number of each swath.\n",
+    "- Pass IDs correspond to the order in which each pass occured during each cycle. For example, \"Pass 1\" in the science phase is the first pass of a given science cycle, and \"Pass 1\" in the Cal/Val phase is the first pass in a given Cal/Val cycle.\n",
+    "- Every \"pass\" is repeated for every \"cycle\". For example, if you want to find all the SWOT data in the California region you would first look at which passes travel through the region, then download those specific passes for all of the cycles you are interested in."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "id": "88ad3c11-3e0e-4823-a72f-8937d33b0d3d",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/ext3/miniforge3/envs/swot_python12/lib/python3.12/site-packages/pyogrio/raw.py:198: RuntimeWarning: /vsizip/../../orbit_data/sph_calval_swath.zip/swot_calval_orbit_june2015-v2_swath.shp contains polygon(s) with rings with invalid winding order. Autocorrecting them, but that shapefile should be corrected using ogr2ogr for example.\n",
+      "  return ogr_read(\n"
+     ]
+    }
+   ],
+   "source": [
+    "\"\"\"\n",
+    "Below is some code to specify the passes and cycles to download.\n",
+    "\n",
+    "Here we are downloading passes in the Kuroshio from all of the Cal/Val cycles,\n",
+    "i.e. cycles 474-578. You will note that I've included (commented out) code for \n",
+    "pulling the science cycles (cycles 001-016). \n",
+    "\n",
+    "Next, I specify which samples I want using the \"tatsu_download.find_swaths()\" script\n",
+    "located in ../src/. This script basically just does what is already in the 001_....ipynb \n",
+    "example notebook. Note that you need to include the \n",
+    "\n",
+    "\"\"\"\n",
+    "\n",
+    "# EXAMPLE: Cycles 001 - 016 are for the 21-day science phase\n",
+    "# cycles = [str(c_num).zfill(3) for c_num in range(1,17)]\n",
+    "\n",
+    "# EXAMPLE: Cycles 474 - 578 are from the 1-day repeat Cal/Val phase\n",
+    "# cycles = [str(c_num).zfill(3) for c_num in range(474,578)]\n",
+    "\n",
+    "# Here I'm just pulling the first 10 cycles from the 1-day repeat Cal/Val phase\n",
+    "cycles = [str(c_num).zfill(3) for c_num in range(474,484)]\n",
+    "\n",
+    "\n",
+    "# Use sph_science_swath for the 21-day repeat\n",
+    "# path_to_sph_file=\"../../orbit_data/sph_science_swath.zip\"\n",
+    "# Use sph_calval_swath for the 1-day repeat\n",
+    "path_to_sph_file=\"../../orbit_data/sph_calval_swath.zip\"\n",
+    "\n",
+    "# Get pass IDs for swaths that intersect your box\n",
+    "pass_IDs_list = tatsu_download.find_swaths(kuroshio_sw_corner, kuroshio_ne_corner,\n",
+    "                                           path_to_sph_file=path_to_sph_file)\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "bea7f948-32b5-41f4-b7b2-04e8d2b2a16a",
+   "metadata": {},
+   "source": [
+    "<code>pass_IDs_list</code> is just a string of the pass IDS for the passes that travel through the kuroshio\n",
+    "\n",
+    "e.g."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "id": "77f993fd-3d3b-48eb-950f-88bfea5a22e4",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "['002', '004', '006', '017', '019', '021']"
+      ]
+     },
+     "execution_count": 15,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "pass_IDs_list"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "9e0af3f3-83bf-493e-bae3-26e1ef20d77a",
+   "metadata": {},
+   "source": [
+    "## Specify the path to the data on the AVISO ftp server\n",
+    "\n",
+    "Next we want to specify where to look for the data on the AVISO ftp server. I'm looking for version 1.0.2 release of the SWOT L3 data, so I've specified the path to this specific release on the AVISO server:\n",
+    "\n",
+    "```python\n",
+    "    # Paths for L3 unsmoothed data\n",
+    "    remote_path=\"swot_products/l3_karin_nadir/l3_lr_ssh/v1_0_2/Unsmoothed\"\n",
+    "```\n",
+    "\n",
+    "If you want to poke around on the AVISO ftp server to find different data releases, you'll have to logon to the AVISO ftp server using your AVISO username / password (or mine if you don't want to make your own), for example:\n",
+    "\n",
+    "```unix\n",
+    ">>> sftp -o User=tdmonkman@uchicago.edu  sftp://ftp-access.aviso.altimetry.fr:2221/swot_products/\n",
+    "    tdmonkman@uchicago.edu@ftp-access.aviso.altimetry.fr's password: PASSWORD\n",
+    "    Connected to ftp-access.aviso.altimetry.fr.\n",
+    "    Changing to: /swot_products/\n",
+    "\n",
+    "sftp> ls\n",
+    "    l2_karin        l3_karin_nadir  l4_karin_nadir \n",
+    "```\n",
+    "Then you can go look around for the data you want using standard unix commands.\n",
+    "\n",
+    "## Specify the remote path to access the data and the local_path you want to save it to on your machine\n",
+    "I'm saving the data in this example to the main SWOT-data-analysis directory, but you'll want to put it somewhere more permanent on your own machine. NOTE: If you want to add more data to SWOT-data-analysis don't forget to change the <code>.gitignore</code> file!"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 16,
+   "id": "60fff35f-e627-42cf-93e6-b60c8a1fe3a5",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "###########################################################################\n",
+    "# L3 v1.0.2 Unsmoothed data:\n",
+    "# Paths for L3 unsmoothed data in the kuroshio region\n",
+    "remote_path=\"swot_products/l3_karin_nadir/l3_lr_ssh/v1_0_2/Unsmoothed\"\n",
+    "local_path = f\"../SWOT_L3/Unsmoothed_kuroshio\"\n",
+    "\n",
+    "\n",
+    "###########################################################################\n",
+    "# Some more example datasets:\n",
+    "\n",
+    "# Paths for L3 expert data\n",
+    "#remote_path=\"/swot_products/l3_karin_nadir/l3_lr_ssh/v1_0_2/Expert\"\n",
+    "#local_path = \"../../../SWOT_L3/Expert\"\n",
+    "# Paths for L2 expert data\n",
+    "#remote_path=\"/swot_products/l2_karin/l2_lr_ssh/PGC0/Expert\"\n",
+    "#local_path = \"../../../SWOT_L2/PGC0/Expert\"\n",
+    "\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "2b78537f-58ee-4b6d-a8ef-537ac02761aa",
+   "metadata": {},
+   "source": [
+    "# Download the data\n",
+    "\n",
+    "The script below downloads the data for the given passes and cycles you are interested in. Note I've instructed the script to generate an extra log file (the <code>skipped_swaths.txt</code> file) to record when there's a problem and the script fails to download the data.\n",
+    "\n",
+    "## Using tatsu_download.download_passes()\n",
+    "\n",
+    "I wrote a helper script to download the data using sftp via paramiko and to deal with subsetting the data. Hopefully it works.\n",
+    "```python\n",
+    "    tatsu_download.download_passes(pass_ID,cycle=cycle,remote_path=remote_path,\n",
+    "                                   save_path=save_path,**ssh_kwargs,\n",
+    "                                   subset=True,lat_lims=lat_lims,trim_suffix=f\"kuroshio\")\n",
+    "```\n",
+    "### Key points\n",
+    "- This script downloads each pass for each cycle separately in order to not piss off the AVISO admins (i.e. if you try doing this in parallel it gets flagged as suspicious by AVISO and they lock you out until you apologize. Apparently 10 SSH connections at a time is the limit, but I would just stick with downloading one pass at a time / per SSH connection in case of bugs).\n",
+    "- <code>subset=True</code> tells the script to trim the swaths by latitude, i.e. only downloading the latitudes that fall into your bounding box. This is nice since the swaths can sometimes get quite large. <code>subset=False</code> tells the script to just download the whole swath, which is fun. <code>lat_lims</code> and <code>trim_suffix</code> are only envoked if <code>subset=True</code>/\n",
+    "- <code>lat_lims</code> are the latitudes at which the script cuts off the swath. Should be input as <code>[southern_lat,northern_lat]</code>.\n",
+    "- <code>trim_suffix=f\"kuroshio\"</code> is a string that I add to the trimmed swath <code>.netcdf</code> files as a suffix to tell me that they're trimmed and to specify what region they correspond to. I find this useful for when things get complicated.\n",
+    "\n",
+    "\n",
+    "\n",
+    "Good luck!"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "d314b9df-5856-4844-88dc-a70fd22e8991",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Attempting SSH connection...\n",
+      "Found cycle_474 on remote server\n",
+      "Looking for matches to SWOT_L3_LR_SSH_Unsmoothed_474_002...\n",
+      "Attempting SSH connection...\n",
+      "Found cycle_474 on remote server\n",
+      "Looking for matches to SWOT_L3_LR_SSH_Unsmoothed_474_004...\n",
+      "Attempting SSH connection...\n",
+      "Found cycle_474 on remote server\n",
+      "Looking for matches to SWOT_L3_LR_SSH_Unsmoothed_474_006...\n",
+      "Found remote file SWOT_L3_LR_SSH_Unsmoothed_474_006_20230329T021734_20230329T030839_v1.0.2.nc\n",
+      "Subsetting SWOT_L3_LR_SSH_Unsmoothed_474_006_20230329T021734_20230329T030839_v1.0.2.nc\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/state/partition1/job-56258829/ipykernel_3365380/3414969896.py:22: SerializationWarning: saving variable latitude with floating point data as an integer dtype without any _FillValue to use for NaNs\n",
+      "  tatsu_download.download_passes(pass_ID,cycle=cycle,remote_path=remote_path,\n",
+      "/state/partition1/job-56258829/ipykernel_3365380/3414969896.py:22: SerializationWarning: saving variable longitude with floating point data as an integer dtype without any _FillValue to use for NaNs\n",
+      "  tatsu_download.download_passes(pass_ID,cycle=cycle,remote_path=remote_path,\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Attempting SSH connection...\n",
+      "Found cycle_474 on remote server\n",
+      "Looking for matches to SWOT_L3_LR_SSH_Unsmoothed_474_017...\n",
+      "Found remote file SWOT_L3_LR_SSH_Unsmoothed_474_017_20230329T113936_20230329T123042_v1.0.2.nc\n",
+      "Subsetting SWOT_L3_LR_SSH_Unsmoothed_474_017_20230329T113936_20230329T123042_v1.0.2.nc\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/state/partition1/job-56258829/ipykernel_3365380/3414969896.py:22: SerializationWarning: saving variable latitude with floating point data as an integer dtype without any _FillValue to use for NaNs\n",
+      "  tatsu_download.download_passes(pass_ID,cycle=cycle,remote_path=remote_path,\n",
+      "/state/partition1/job-56258829/ipykernel_3365380/3414969896.py:22: SerializationWarning: saving variable longitude with floating point data as an integer dtype without any _FillValue to use for NaNs\n",
+      "  tatsu_download.download_passes(pass_ID,cycle=cycle,remote_path=remote_path,\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Attempting SSH connection...\n",
+      "Found cycle_474 on remote server\n",
+      "Looking for matches to SWOT_L3_LR_SSH_Unsmoothed_474_019...\n",
+      "Found remote file SWOT_L3_LR_SSH_Unsmoothed_474_019_20230329T132147_20230329T141138_v1.0.2.nc\n",
+      "Subsetting SWOT_L3_LR_SSH_Unsmoothed_474_019_20230329T132147_20230329T141138_v1.0.2.nc\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/state/partition1/job-56258829/ipykernel_3365380/3414969896.py:22: SerializationWarning: saving variable latitude with floating point data as an integer dtype without any _FillValue to use for NaNs\n",
+      "  tatsu_download.download_passes(pass_ID,cycle=cycle,remote_path=remote_path,\n",
+      "/state/partition1/job-56258829/ipykernel_3365380/3414969896.py:22: SerializationWarning: saving variable longitude with floating point data as an integer dtype without any _FillValue to use for NaNs\n",
+      "  tatsu_download.download_passes(pass_ID,cycle=cycle,remote_path=remote_path,\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Attempting SSH connection...\n",
+      "Found cycle_474 on remote server\n",
+      "Looking for matches to SWOT_L3_LR_SSH_Unsmoothed_474_021...\n",
+      "Found remote file SWOT_L3_LR_SSH_Unsmoothed_474_021_20230329T150358_20230329T155423_v1.0.2.nc\n",
+      "Subsetting SWOT_L3_LR_SSH_Unsmoothed_474_021_20230329T150358_20230329T155423_v1.0.2.nc\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/state/partition1/job-56258829/ipykernel_3365380/3414969896.py:22: SerializationWarning: saving variable latitude with floating point data as an integer dtype without any _FillValue to use for NaNs\n",
+      "  tatsu_download.download_passes(pass_ID,cycle=cycle,remote_path=remote_path,\n",
+      "/state/partition1/job-56258829/ipykernel_3365380/3414969896.py:22: SerializationWarning: saving variable longitude with floating point data as an integer dtype without any _FillValue to use for NaNs\n",
+      "  tatsu_download.download_passes(pass_ID,cycle=cycle,remote_path=remote_path,\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Attempting SSH connection...\n",
+      "Found cycle_475 on remote server\n",
+      "Looking for matches to SWOT_L3_LR_SSH_Unsmoothed_475_002...\n",
+      "Found remote file SWOT_L3_LR_SSH_Unsmoothed_475_002_20230329T224349_20230329T233455_v1.0.2.nc\n",
+      "Subsetting SWOT_L3_LR_SSH_Unsmoothed_475_002_20230329T224349_20230329T233455_v1.0.2.nc\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/state/partition1/job-56258829/ipykernel_3365380/3414969896.py:22: SerializationWarning: saving variable latitude with floating point data as an integer dtype without any _FillValue to use for NaNs\n",
+      "  tatsu_download.download_passes(pass_ID,cycle=cycle,remote_path=remote_path,\n",
+      "/state/partition1/job-56258829/ipykernel_3365380/3414969896.py:22: SerializationWarning: saving variable longitude with floating point data as an integer dtype without any _FillValue to use for NaNs\n",
+      "  tatsu_download.download_passes(pass_ID,cycle=cycle,remote_path=remote_path,\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Attempting SSH connection...\n",
+      "Found cycle_475 on remote server\n",
+      "Looking for matches to SWOT_L3_LR_SSH_Unsmoothed_475_004...\n",
+      "Found remote file SWOT_L3_LR_SSH_Unsmoothed_475_004_20230330T002601_20230330T011706_v1.0.2.nc\n",
+      "Subsetting SWOT_L3_LR_SSH_Unsmoothed_475_004_20230330T002601_20230330T011706_v1.0.2.nc\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/state/partition1/job-56258829/ipykernel_3365380/3414969896.py:22: SerializationWarning: saving variable latitude with floating point data as an integer dtype without any _FillValue to use for NaNs\n",
+      "  tatsu_download.download_passes(pass_ID,cycle=cycle,remote_path=remote_path,\n",
+      "/state/partition1/job-56258829/ipykernel_3365380/3414969896.py:22: SerializationWarning: saving variable longitude with floating point data as an integer dtype without any _FillValue to use for NaNs\n",
+      "  tatsu_download.download_passes(pass_ID,cycle=cycle,remote_path=remote_path,\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Make a file to store IDs for swaths that didn't download\n",
+    "with open(\"skipped_swaths.txt\",\"w\") as file:\n",
+    "    file.write(\"Failed to download the following swaths:\")\n",
+    "    file.write(\" cycle, pass_ID \\n ----------\")\n",
+    "    file.close()\n",
+    "\n",
+    "# MAKE SURE TO CHANGE THE SAVE PATH IF YOU ARE REDOWNLOADING\n",
+    "for cycle in cycles:\n",
+    "    save_path = local_path+f\"/cycle_{cycle}\"\n",
+    "    if not os.path.isdir(save_path):\n",
+    "        os.makedirs(save_path, exist_ok=False)\n",
+    "    # If you want to clean any bad existing files in the path,\n",
+    "    # do so here. You need to modify the \"size\" parameter to specify\n",
+    "    # a size cutoff for what is an \"incomplete\" file. Generally a skipped \n",
+    "    # connection will generate a filler file that is size < 10 Mb\n",
+    "    tatsu_download.clean_incomplete_files(save_path, size=10)\n",
+    "    \n",
+    "    # Download passes\n",
+    "    for pass_ID in pass_IDs_list:\n",
+    "        try:\n",
+    "            # Call the download passes script. Note the login info goes in \"ssh_kwargs\"\n",
+    "            tatsu_download.download_passes(pass_ID,cycle=cycle,remote_path=remote_path,\n",
+    "                                           save_path=save_path,**ssh_kwargs,\n",
+    "                                           subset=True,lat_lims=lat_lims,trim_suffix=f\"kuroshio\")\n",
+    "        except Exception as e:\n",
+    "            print(\"*****\"*5)\n",
+    "            print(f\"Could not download pass {pass_ID} in cycle {cycle}\")\n",
+    "            print(f\"An error occured: {e}\")\n",
+    "            print(\"*****\"*5)\n",
+    "            with open(\"skipped_swaths.txt\",\"a\") as file:\n",
+    "                file.write(f\"\\n {cycle}, {pass_ID}\")\n",
+    "                \n",
+    "    # Sleep for 10 seconds so you don't make AVISO mad \n",
+    "    time.sleep(10)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "c2cd5412-c162-4053-9e1c-cac0fd627cff",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "swot_python12",
+   "language": "python",
+   "name": "swot_python12"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.12.5"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}

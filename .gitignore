@@ -166,5 +166,6 @@ cython_debug/
 # plotting using cartopy
 /orbit_data
 /ne_10m_bathymetry_all
+/SWOT_L3
 
 
