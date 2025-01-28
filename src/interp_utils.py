@@ -62,12 +62,12 @@ def xyz2ll(x, y, z, lat_org, lon_org, alt_org, transformer1=TRANSFORMER_LL2XYZ, 
         Arrays of geodetic latitude and longitude corresponding to the input ENU coordinates.
     """
 
-    # Convert the ENU origin's geodetic coordinates to ECEF coordinates.
+    # Convert the ENU origin's geodetic coordinates to ECEF coordinates (https://en.wikipedia.org/wiki/Earth-centered,_Earth-fixed_coordinate_system)
     # The origin is the reference point for the local tangent plane.
     x_org, y_org, z_org = transformer1.transform(lon_org, lat_org, alt_org, radians=False)
     ecef_org = np.array([[x_org, y_org, z_org]]).T
 
-    # Create a rotation matrix to transform between ECEF and ENU coordinates.
+    # Create a rotation matrix to transform between ECEF and ENU coordinates (https://gssc.esa.int/navipedia/index.php/Transformations_between_ECEF_and_ENU_coordinates)
     # This involves two rotations:
     # 1. Rotating about the X-axis to account for the latitude.
     rot1 = scipy.spatial.transform.Rotation.from_euler('x', -(90 - lat_org), degrees=True).as_matrix()
@@ -84,7 +84,9 @@ def xyz2ll(x, y, z, lat_org, lon_org, alt_org, transformer1=TRANSFORMER_LL2XYZ, 
     # Convert ECEF coordinates back to geodetic latitude, longitude, and altitude.
     lon, lat, alt = transformer2.transform(ecef[0, :], ecef[1, :], ecef[2, :], radians=False)
 
-    # Return only latitude and longitude since altitude is not relevant for this application.
+    # only return lat, lon since we're interested in points on Earth. 
+    # N.B. this amounts to doing an inverse stereographic projection from ENU to lat, lon so shouldn't be used to directly back calculate lat, lon from tangent plane coords
+    # this is instead achieved by binning the data's lat/long variables onto the grid in the same way as is done for the variable of interest
     return lat, lon
 
 
@@ -107,7 +109,7 @@ def ll2xyz(lat, lon, alt, lat_org, lon_org, alt_org, transformer=TRANSFORMER_LL2
         Arrays representing the ENU coordinates relative to the origin.
     """
 
-    # Convert geodetic coordinates to ECEF.
+    # Convert geodetic coordinates to ECEF  (https://en.wikipedia.org/wiki/Earth-centered,_Earth-fixed_coordinate_system)
     x, y, z = transformer.transform(lon, lat, np.zeros_like(lon), radians=False)
     # Convert the ENU origin's geodetic coordinates to ECEF.
     x_org, y_org, z_org = transformer.transform(lon_org, lat_org, alt_org, radians=False)
@@ -115,7 +117,7 @@ def ll2xyz(lat, lon, alt, lat_org, lon_org, alt_org, transformer=TRANSFORMER_LL2
     # Compute the vector from the origin to the points in ECEF coordinates.
     vec = np.array([[x - x_org, y - y_org, z - z_org]]).T
 
-    # Create a rotation matrix to transform from ECEF to ENU.
+    # Create a rotation matrix to transform from ECEF to ENU (https://gssc.esa.int/navipedia/index.php/Transformations_between_ECEF_and_ENU_coordinates)
     rot1 = scipy.spatial.transform.Rotation.from_euler('x', -(90 - lat_org), degrees=True).as_matrix()
     rot3 = scipy.spatial.transform.Rotation.from_euler('z', -(90 + lon_org), degrees=True).as_matrix()
     rotMatrix = rot1.dot(rot3)
@@ -211,7 +213,17 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
     # Project latitude and longitude coordinates onto an ENU coordinate system
     x, y, z = ll2xyz(lats, lons, 0, lat0, lon0, 0)
 
+    # Generate regular cartesian points for grid coordinates
+    x_c, y_c = np.linspace(-L_x / 2, L_x / 2, n), np.linspace(-L_y / 2, L_y / 2, n)
+    
+    # Generate gridded lat/lon coordinates for the ENU tangent plane
+    xx_c, yy_c = np.meshgrid(x_c, y_c)
+    lat_c, lon_c = xyz2ll(xx_c.flatten(), yy_c.flatten(), 0, lat0, lon0, 0)
+    # reshape
+    lat_c, lon_c = np.reshape(lat_c,yy_c.shape), np.reshape(lon_c,xx_c.shape)
+
     # Check if the input is a Dataset or a DataArray
+    # If the input is a Dataset, grid each variable
     if isinstance(swath_data, xr.Dataset):
         # Initialize a dictionary to hold gridded variables
         gridded_vars = {}
@@ -220,25 +232,25 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
         for var_name, data_array in swath_data.data_vars.items():
             # Grid the variable
             gridded_data = grid_field_enu(x, y, data_array.values.flatten(), n, L_x, L_y)
-            gridded_vars[var_name] = (["x", "y"], np.nan_to_num(gridded_data))
+            gridded_vars[var_name] = (["x", "y"])
 
         # Grid latitude, longitude, and ENU coordinates
-        lat_gridded = grid_field_enu(x, y, lats, n, L_x, L_y)
-        lon_gridded = grid_field_enu(x, y, lons, n, L_x, L_y)
-        x_gridded = grid_field_enu(x, y, x, n, L_x, L_y)
-        y_gridded = grid_field_enu(x, y, y, n, L_x, L_y)
+        # lat_gridded = grid_field_enu(x, y, lats, n, L_x, L_y)
+        # lon_gridded = grid_field_enu(x, y, lons, n, L_x, L_y)
+        # x_gridded = grid_field_enu(x, y, x, n, L_x, L_y)
+        # y_gridded = grid_field_enu(x, y, y, n, L_x, L_y)
 
         # Return a gridded xarray.Dataset
         return xr.Dataset(
             data_vars=gridded_vars,
             coords=dict(
-                latitude=(["x", "y"], lat_gridded),
-                longitude=(["x", "y"], lon_gridded),
-                x=(["x", "y"], x_gridded),
-                y=(["x", "y"], y_gridded),
+                latitude=(["x", "y"], lat_c),
+                longitude=(["x", "y"], lon_c),
+                x=(["x"], x_c),
+                y=(["y"], y_c),
             ),
         )
-
+    # Elif the input is a Dataarray, grid the field
     elif isinstance(swath_data, xr.DataArray):
         # Interpolate the single data variable
         gridded_data = grid_field_enu(x, y, swath_data.values.flatten(), n, L_x, L_y)
@@ -246,23 +258,22 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
         # Grid latitude, longitude, and ENU coordinates
         lat_gridded = grid_field_enu(x, y, lats, n, L_x, L_y)
         lon_gridded = grid_field_enu(x, y, lons, n, L_x, L_y)
-        x_gridded = grid_field_enu(x, y, x, n, L_x, L_y)
-        y_gridded = grid_field_enu(x, y, y, n, L_x, L_y)
 
         # Return a gridded xarray.DataArray
         return xr.DataArray(
-            data=np.nan_to_num(gridded_data),
+            data=gridded_data,
             dims=["x", "y"],
             coords=dict(
-                latitude=(["x", "y"], lat_gridded),
-                longitude=(["x", "y"], lon_gridded),
-                x=(["x", "y"], x_gridded),
-                y=(["x", "y"], y_gridded),
+                latitude=(["x", "y"], lat_c),
+                longitude=(["x", "y"], lon_c),
+                x=(["x"], x_c),
+                y=(["y"], y_c),
             ),
         )
     else:
         raise TypeError("Input must be an xarray.Dataset or xarray.DataArray")
 
+    return
 
 # Extra helper functions from NeursOST, saving for later
 def normalise_ssh(ssh, mean_ssh, std_ssh):    
@@ -278,10 +289,5 @@ def rescale_y(y, L_y, n):
 
 
 
-
-
-
-
-    
 
     
