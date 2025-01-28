@@ -2,120 +2,148 @@
 # -*- coding: utf-8 -*-
 
 """
-This file contains routines for plotting SWOT data
+This file contains routines for plotting SWOT (Surface Water and Ocean Topography) data.
+It includes utilities to load bathymetry data, remap quality flags, and plot SWOT swaths with geographic features.
 
-1st Author: Tatsu
+Author: Tatsu
 Date: First version: 1.23.2025
 
 Dependencies:
-    xarray
-    numpy
-    matplotlib
-    cartopy
-    cmocean
+    - xarray
+    - numpy
+    - matplotlib
+    - cartopy
+    - cmocean
 """
 
+# Import necessary libraries
+import xarray as xr  # For working with multidimensional SWOT data
+import os  # For file path and directory management
+import numpy as np  # For numerical operations
+from glob import glob  # For finding files with patterns
 
-import xarray as xr
-import os
-import numpy as np
-from glob import glob
-
+# Import visualization libraries
 import matplotlib.pyplot as plt
 import matplotlib
-import cartopy.crs as ccrs
-import cartopy.feature as cfeature
-# Use shpreader for bathymetry file
-import cartopy.io.shapereader as shpreader
+import cartopy.crs as ccrs  # For geographic projections
+import cartopy.feature as cfeature  # For adding features (e.g., coastlines)
+import cartopy.io.shapereader as shpreader  # For reading shapefiles (e.g., bathymetry data)
 
-import cmocean.cm as cm
+import cmocean.cm as cm  # Oceanographic colormaps (e.g., "balance")
 
-
-##########################################################################################
-# A collection of quick and dirty scripts for Tatsu to use to look
-# at SWOT data
-##########################################################################################
-
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Function: load_bathymetry
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 def load_bathymetry(zip_file_url):
     """
-    A helper script to read from a zip file from Natural Earth 
-    containing bathymetry shapefiles.
-    
+    Loads bathymetry data from a Natural Earth zip file containing shapefiles.
+
+    Parameters
+    ----------
+    zip_file_url : str
+        URL of the zip file containing bathymetry shapefiles.
+
+    Returns
+    -------
+    depths : np.ndarray
+        Sorted array of depth levels (from surface to bottom).
+    shp_dict : dict
+        Dictionary mapping depth levels (as strings) to their respective shapefile geometries.
     """
-    # Download and extract shapefiles
+    # Import required libraries for downloading and extracting zip files
     import io
     import zipfile
-    import os
-
     import requests
-    
-    # Download bathymetry if you don't have it already..
-    # Watch out these files are quite large...
+
+    # Check if bathymetry data is already downloaded
     if not os.path.exists("../ne_10m_bathymetry_all/"):
-        import requests
+        print("Downloading bathymetry shapefiles...")
+        # Download the zip file and extract its contents
         r = requests.get(zip_file_url)
         z = zipfile.ZipFile(io.BytesIO(r.content))
-        z.extractall("../ne_10m_bathymetry_all/")
-    
-    # Read shapefiles, sorted by depth
+        z.extractall("../ne_10m_bathymetry_all/")  # Extract files to the specified directory
+
+    # Read all shapefiles in the extracted directory
     shp_dict = {}
-    files = glob('../ne_10m_bathymetry_all/*.shp')
-    assert len(files) > 0
-    files.sort()
+    files = glob('../ne_10m_bathymetry_all/*.shp')  # Get all shapefiles
+    assert len(files) > 0, "No shapefiles found in the directory!"
+    files.sort()  # Sort the files to process them in order
+
+    # Extract depth levels from the filenames and load the geometries
     depths = []
     for f in files:
-        depth = '-' + f.split('_')[-1].split('.')[0]  # depth from file name
+        # Extract depth value from the filename (e.g., "-2000" from "ne_10m_bathymetry_-2000.shp")
+        depth = '-' + f.split('_')[-1].split('.')[0]
         depths.append(depth)
-        bbox = (-180, -90, 180, 90)  # (x0, y0, x1, y1)
+
+        # Load the shapefile using Cartopy's `shpreader`
+        bbox = (-180, -90, 180, 90)  # Global bounding box (lon_min, lat_min, lon_max, lat_max)
         nei = shpreader.Reader(f, bbox=bbox)
         shp_dict[depth] = nei
-    depths = np.array(depths)[::-1]  # sort from surface to bottom
-    
+
+    # Return depths (sorted from surface to bottom) and the shapefile dictionary
+    depths = np.array(depths)[::-1]  # Reverse to get surface-to-bottom order
     return depths, shp_dict
 
 ##########################################################################################
+# Main script for testing bathymetry loading
 if __name__ == "__main__":
-    # Load data (14.8 MB file)
+    # Load bathymetry shapefiles from Natural Earth repository
     depths_str, shp_dict = load_bathymetry(
         'https://naturalearth.s3.amazonaws.com/' +
-        '10m_physical/ne_10m_bathymetry_all.zip')
+        '10m_physical/ne_10m_bathymetry_all.zip'
+    )
 
-    # Construct a discrete colormap with colors corresponding to each depth
-    depths = depths_str.astype(int)
-    N = len(depths)
-    nudge = 0.01  # shift bin edge slightly to include data
-    boundaries = [min(depths)] + sorted(depths+nudge)  # low to high
-    norm = matplotlib.colors.BoundaryNorm(boundaries, N)
-    blues_cm = matplotlib.colormaps['Blues_r'].resampled(N)
-    colors_depths = blues_cm(norm(depths))
-
+    # Create a colormap for bathymetry depth levels
+    depths = depths_str.astype(int)  # Convert depth strings to integers
+    N = len(depths)  # Number of depth levels
+    nudge = 0.01  # Slight adjustment to bin edges
+    boundaries = [min(depths)] + sorted(depths + nudge)  # Bin edges for colormap
+    norm = matplotlib.colors.BoundaryNorm(boundaries, N)  # Normalize depth values
+    blues_cm = matplotlib.colormaps['Blues_r'].resampled(N)  # Use reversed "Blues" colormap
+    colors_depths = blues_cm(norm(depths))  # Map depth values to corresponding colors
 ##########################################################################################
 
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Function: remap_quality_flags
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 def remap_quality_flags(swath):
     """
-    A simple script to remap quality flags to discrete values
-    """
+    Remaps quality flags in the SWOT dataset to discrete values for easier plotting.
 
+    Parameters
+    ----------
+    swath : xarray.Dataset
+        SWOT dataset containing the 'quality_flag' variable.
+
+    Returns
+    -------
+    xarray.Dataset
+        Modified dataset with remapped 'quality_flag' values.
+    """
+    # Check if 'quality_flag' exists in the dataset
     if not "quality_flag" in swath:
         return
 
+    # Replace original quality flag values with simplified discrete values
     flags = swath.quality_flag
-    flags.values[flags.values==5.] = 1
-    flags.values[flags.values==10.] = 2
-    flags.values[flags.values==20.] = 3
-    flags.values[flags.values==30.] = 4
-    flags.values[flags.values==50.] = 5
-    flags.values[flags.values==70.] = 6
-    flags.values[flags.values==100.] = 7
-    flags.values[flags.values==101.] = 8
-    flags.values[flags.values==102.] = 9
+    flags.values[flags.values == 5.] = 1
+    flags.values[flags.values == 10.] = 2
+    flags.values[flags.values == 20.] = 3
+    flags.values[flags.values == 30.] = 4
+    flags.values[flags.values == 50.] = 5
+    flags.values[flags.values == 70.] = 6
+    flags.values[flags.values == 100.] = 7
+    flags.values[flags.values == 101.] = 8
+    flags.values[flags.values == 102.] = 9
 
+    # Update the dataset and return it
     swath.quality_flag.values = flags.values
-    
     return swath
 
-
-
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Function: plot_cycle
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 def plot_cycle(swaths,fields=["ssha"],title="Example Swaths August 2024 (Cycle 4)",cbar_titles=["SSHA (m)"],
                vmins=[-0.8],vmaxes=[0.8], subplot_kw={'projection': ccrs.PlateCarree()},
                ssha_plot_kw = {"transform":ccrs.PlateCarree(),
@@ -125,9 +153,45 @@ def plot_cycle(swaths,fields=["ssha"],title="Example Swaths August 2024 (Cycle 4
                axes=[None], plot_bathymetry=True,
               ):
     """
-    A complicated script to make nice plots of swaths across a single cycle
-    
+    Plots SWOT swaths for a single cycle with optional bathymetry and other geographic features.
+
+    Parameters
+    ----------
+    swaths : list of xarray.Dataset
+        List of SWOT swaths to plot.
+    fields : list of str, optional
+        Data variables to plot (default: ["ssha"]).
+    title : str, optional
+        Title of the plot (default: "Example Swaths August 2024 (Cycle 4)").
+    cbar_titles : list of str, optional
+        Titles for colorbars (default: ["SSHA (m)"]).
+    vmins : list of float, optional
+        Minimum values for colormaps (default: [-0.8]).
+    vmaxes : list of float, optional
+        Maximum values for colormaps (default: [0.8]).
+    subplot_kw : dict, optional
+        Keywords for creating subplots (default: {'projection': ccrs.PlateCarree()}).
+    ssha_plot_kw : dict, optional
+        Scatter plot options for SSH anomalies (default: marker and style settings).
+    cmaps : list of colormap, optional
+        List of colormaps for each variable (default: [cm.balance]).
+    dpi : int, optional
+        Resolution of the plot (default: 100 dpi).
+    set_extent : bool, optional
+        Whether to limit the map's extent (default: False).
+    extent_lims : list of float, optional
+        Bounding box for the map: [min_lon, max_lon, min_lat, max_lat] (default: global extent).
+    axes : list, optional
+        Existing axes to plot on; if None, a new figure is created (default: [None]).
+    plot_bathymetry : bool, optional
+        Whether to include bathymetry in the plot (default: True).
+
+    Returns
+    -------
+    axs : list of matplotlib.axes
+        Axes containing the plots.
     """
+    
     # Load data (14.8 MB file)
     depths_str, shp_dict = load_bathymetry(
         'https://naturalearth.s3.amazonaws.com/' +

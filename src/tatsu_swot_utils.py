@@ -12,14 +12,13 @@ Date: First version: 11.15.2024
 Dependencies:
     numpy
     scipy
-    pylab
+    
     xarray
     pyresample
 """
 
 import numpy as np
 import scipy.signal as signal
-import pylab as plt
 import xarray as xr
 import numpy as np
 import requests
