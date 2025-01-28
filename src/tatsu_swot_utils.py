@@ -28,7 +28,7 @@ import xrft
 
 
 
-def subset(data_in,lat_bounds):
+def subset(data_in, lat_bounds, lon_bounds=None):
     """
     Subset data using Jinbo's script (pulled out of L2 class in the SWOT_Open_Toolkit)
     
@@ -37,37 +37,54 @@ def subset(data_in,lat_bounds):
     data_in : xarray dataset
         Swath xarray dataset, must contain lat and lon coordinates
     lat_bounds : iterable, 
-        
+        North - South boundaries at which to subset
+    lon_bounds : iterable,
+        East - West boundaries at which to subset        
     
     Returns
     -------
     
     """
     # Pull cross-swath averaged latitudes and find bounding indices
-    lat=np.nanmean(data_in['latitude'].data,axis=-1)
+    lat=np.nanmean(data_in['latitude'].load().values,axis=-1)
     # Set Nan values to 100
     lat=np.where(np.isnan(lat),100,lat)
     l0,l1=lat_bounds
     # Find the index of the closest mean 
     # cross-track latitude to the lat bounds
-    i0=np.where(np.abs(lat-l0)==np.abs(lat-l0).min())[0][0]
-    i1=np.where(np.abs(lat-l1)==np.abs(lat-l1).min())[0][0]
-    
+    j0=np.where(np.abs(lat-l0)==np.abs(lat-l0).min())[0][0]
+    j1=np.where(np.abs(lat-l1)==np.abs(lat-l1).min())[0][0]
     # Flip order if swath is descending
-    if i0>i1:
-        i0,i1=i1,i0
-    
+    if j0>j1:
+        j0,j1=j1,j0
     # Return empty array if bounding indices are the same
-    if i0==i1:
-        return []
-    
+    if j0==j1:
+        return None
+
+    # If you also added longitudinal boundaries, repeat the earlier steps
+    # in the zonal direction
+    if lon_bounds is not None:
+        lon=np.nanmean(data_in['longitude'].load().values,axis=0)
+        lon=np.where(np.isnan(lon),100,lon)
+        l0,l1=lon_bounds
+        i0=np.where(np.abs(lon-l0)==np.abs(lon-l0).min())[0][0]
+        i1=np.where(np.abs(lon-l1)==np.abs(lon-l1).min())[0][0]
+        if i0>i1:
+            i0,i1=i1,i0
+        if i0==i1:
+            return None
+    else:
+        i0=None
+        i1=None
+            
     # Subset all variables that share the latitude dimension
     subset_vars = {}
     for varname, var in data_in.data_vars.items():
-        if var.dims==2:
-            subset_vars[varname] = var[i0:i1,:]
+        if len(var.dims)==2:
+            subset_vars[varname] = var[j0:j1,i0:i1]
         else:
-            subset_vars[varname] = var[i0:i1]
+            # Else just do lat bounds, perhaps should change this..
+            subset_vars[varname] = var[j0:j1]
     
     # Combine the subset variables into a new dataset
     subset_data = xr.Dataset(subset_vars, attrs=data_in.attrs)
