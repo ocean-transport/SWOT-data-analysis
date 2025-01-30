@@ -2,10 +2,13 @@
 # -*- coding: utf-8 -*-
 
 """
-This file contains routines for interpolating and regridding SWOT (Surface Water and Ocean Topography) swath data. 
+This file contains routines for interpolating and regridding SWOT (Surface Water and Ocean Topography) and VIIRS 
+(Visible Infrared Imaging Radiometer Suite, onboard the NOAA-20, -21, and -NPP satellites) swath data. 
 It includes functions for coordinate transformations between geodetic latitude-longitude-altitude and 
 local ENU (East-North-Up) coordinates. The code is adapted from the interp_utils package in Scott Martin's NeurOST 
 project, with references to PyProj transformations and a Stack Overflow discussion on ENU conversions.
+
+This code is pretty flexible and can be used for regridding any lat-lon spatial dataset, for example llc4320.
 
 Author: Tatsu
 Date: First version: 1.27.2025
@@ -22,7 +25,7 @@ import numpy as np
 import pyproj  # For geodetic coordinate transformations
 import xarray as xr  # For handling multidimensional datasets
 import scipy.spatial.transform  # For 3D rotation matrices
-import scipy.stats as stats  # For statistical operations (not used in this snippet)
+from scipy import stats # For binning the swath on a 2D domain
 from datetime import date, timedelta  # For handling dates
 import os  # For interacting with the operating system
 
@@ -41,6 +44,9 @@ TRANSFORMER_XYZ2LL = pyproj.Transformer.from_crs(
 )
 
 
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# ENU to lat/lon transformation
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 def xyz2ll(x, y, z, lat_org, lon_org, alt_org, transformer1=TRANSFORMER_LL2XYZ, transformer2=TRANSFORMER_XYZ2LL):
     """
     Converts local ENU (East-North-Up) coordinates back to geodetic latitude and longitude.
@@ -89,7 +95,9 @@ def xyz2ll(x, y, z, lat_org, lon_org, alt_org, transformer1=TRANSFORMER_LL2XYZ, 
     # this is instead achieved by binning the data's lat/long variables onto the grid in the same way as is done for the variable of interest
     return lat, lon
 
-
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Lat/lon to ENU transformation
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 def ll2xyz(lat, lon, alt, lat_org, lon_org, alt_org, transformer=TRANSFORMER_LL2XYZ):
     """
     Converts geodetic latitude, longitude, and altitude to local ENU (East-North-Up) coordinates.
@@ -130,11 +138,13 @@ def ll2xyz(lat, lon, alt, lat_org, lon_org, alt_org, transformer=TRANSFORMER_LL2
 
     return X, Y, Z
 
-
-# Grid a given input field onto an ENU (East-North-Up) tangent plane using scipy's binned_statistic_2d function
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# General gridding function
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 def grid_field_enu(x, y, ssh, n, L_x, L_y):
     """
     Interpolates a field onto a 2D grid in the ENU tangent plane using a statistical binning approach.
+    Source: NeurOST (Scott Martin, UW)
 
     Parameters
     ----------
@@ -175,7 +185,9 @@ def grid_field_enu(x, y, ssh, n, L_x, L_y):
 
     return gridded_data
 
-
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Wrapper for resampling lat/lon fields to a gridded ENU projection
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
     """
     Interpolates swath data onto a regular grid using an ENU projection.
@@ -275,7 +287,9 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
 
     return
 
-# Extra helper functions from NeursOST, saving for later
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Extra helper functions from NeursOST
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 def normalise_ssh(ssh, mean_ssh, std_ssh):    
     return (ssh-mean_ssh)/std_ssh
 
