@@ -137,6 +137,7 @@ def ll2xyz(lat, lon, alt, lat_org, lon_org, alt_org, transformer=TRANSFORMER_LL2
     X, Y, Z = enu[0, :, 0], enu[0, :, 1], enu[0, :, 2]
 
     return X, Y, Z
+    
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # General gridding function
@@ -176,14 +177,18 @@ def grid_field_enu(x, y, ssh, n, L_x, L_y):
             statistic='mean',
             bins=n,
             range=[[-L_x / 2, L_x / 2], [-L_y / 2, L_y / 2]]
-        )[0]
+        )[0], k=-1
     )
 
+    # Data comes out flipped for some reason
+    gridded_data = np.flip(gridded_data,axis=1)
+    
     # Rotate the resulting 2D array by 90 degrees to align the output with expected orientation.
     # This is often needed because binned_statistic_2d may produce an output with an inverted
     # or transposed axis order.
 
     return gridded_data
+    
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Wrapper for resampling lat/lon fields to a gridded ENU projection
@@ -247,17 +252,15 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
             gridded_vars[var_name] = (["x", "y"])
 
         # Grid latitude, longitude, and ENU coordinates
-        # lat_gridded = grid_field_enu(x, y, lats, n, L_x, L_y)
-        # lon_gridded = grid_field_enu(x, y, lons, n, L_x, L_y)
-        # x_gridded = grid_field_enu(x, y, x, n, L_x, L_y)
-        # y_gridded = grid_field_enu(x, y, y, n, L_x, L_y)
+        lat_gridded = grid_field_enu(x, y, lats, n, L_x, L_y)
+        lon_gridded = grid_field_enu(x, y, lons, n, L_x, L_y)
 
         # Return a gridded xarray.Dataset
         return xr.Dataset(
             data_vars=gridded_vars,
             coords=dict(
-                latitude=(["x", "y"], lat_c),
-                longitude=(["x", "y"], lon_c),
+                latitude=(["x", "y"], lat_gridded),
+                longitude=(["x", "y"], lon_gridded),
                 x=(["x"], x_c),
                 y=(["y"], y_c),
             ),
@@ -276,8 +279,8 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
             data=gridded_data,
             dims=["x", "y"],
             coords=dict(
-                latitude=(["x", "y"], lat_c),
-                longitude=(["x", "y"], lon_c),
+                latitude=(["x", "y"], lat_gridded),
+                longitude=(["x", "y"], lon_gridded),
                 x=(["x"], x_c),
                 y=(["y"], y_c),
             ),
