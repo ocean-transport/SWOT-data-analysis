@@ -177,11 +177,12 @@ def download_passes(pass_ID, cycle="001", remote_path="swot_products/l3_karin_na
                     # Subset file by latitude
                     temp_file = f"./tmp_{trim_suffix}.nc"
                     sftp_client.get(f"{remote_path_cycle}/{remote_file}", temp_file)
-                    swath = xr.open_dataset(temp_file)
-                    trimmed_swath = tatsu_swot.subset(swath, lat_lims).load()
-                    trimmed_filename = f"{remote_file[:-3]}_{trim_suffix}.nc"
-                    trimmed_swath.to_netcdf(f"./{save_path}/{trimmed_filename}")
-                    os.remove(temp_file)
+                    # Open and trim datasets
+                    with xr.open_dataset(temp_file) as swath:
+                        trimmed_swath = tatsu_swot.subset(swath, lat_lims).load()
+                        trimmed_filename = f"{remote_file[:-3]}_{trim_suffix}.nc"
+                        trimmed_swath.to_netcdf(f"./{save_path}/{trimmed_filename}")
+                    
                     print(f"Downloaded and trimmed {remote_file}")
             except Exception as e:
                 print(f"Failed to download {remote_file}. Error: {e}")
