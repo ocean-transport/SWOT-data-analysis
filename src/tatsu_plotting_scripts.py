@@ -85,8 +85,10 @@ def load_bathymetry(zip_file_url):
     depths = np.array(depths)[::-1]  # Reverse to get surface-to-bottom order
     return depths, shp_dict
 
-##########################################################################################
-# Main script for testing bathymetry loading
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Mini script for testing bathymetry loading, may delete
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if __name__ == "__main__":
     # Load bathymetry shapefiles from Natural Earth repository
     depths_str, shp_dict = load_bathymetry(
@@ -102,7 +104,8 @@ if __name__ == "__main__":
     norm = matplotlib.colors.BoundaryNorm(boundaries, N)  # Normalize depth values
     blues_cm = matplotlib.colormaps['Blues_r'].resampled(N)  # Use reversed "Blues" colormap
     colors_depths = blues_cm(norm(depths))  # Map depth values to corresponding colors
-##########################################################################################
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Function: remap_quality_flags
@@ -140,6 +143,7 @@ def remap_quality_flags(swath):
     # Update the dataset and return it
     swath.quality_flag.values = flags.values
     return swath
+
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Function: plot_cycle
