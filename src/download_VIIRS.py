@@ -21,7 +21,7 @@ sys.path.append('../zarr-eosdis-store1/eosdis_store1/')
 sys.path.append('../../SWOT-data-analysis/src')
 import stores
 import dmrpp
-import tatsu_swot_utils as swot_utils
+import swot_utils
 from importlib import reload
 import os
 import traceback
