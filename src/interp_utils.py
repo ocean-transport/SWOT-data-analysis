@@ -225,7 +225,7 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
     """
     # Extract latitude and longitude from the input dataset or data array
     lats = swath_data.latitude.values.flatten()
-    lons = ((swath_data.longitude.values.flatten() % 180) - 180)
+    lons = (swath_data.longitude.values.flatten() % 360 + 180) % 360 - 180
 
     # Project latitude and longitude coordinates onto an ENU coordinate system
     x, y, z = ll2xyz(lats, lons, 0, lat0, lon0, 0)

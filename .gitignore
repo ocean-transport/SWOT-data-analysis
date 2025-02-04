@@ -169,5 +169,7 @@ cython_debug/
 /orbit_data
 /ne_10m_bathymetry_all
 /SWOT_L3
-
+# Also ignore any extra files accidentally written to /examples/
+/examples/*.txt
+/examples/*.nc
 
