@@ -20,14 +20,17 @@ Dependencies:
     - geopandas
 """
 
-# Import necessary libraries
+# Import Python libraries
 import geopandas as gpd  # For working with geospatial data
 import shapely.geometry as geometry  # For defining bounding boxes and geometry
 import paramiko  # For SFTP connections
 import os  # For file system operations
 import xarray as xr  # For working with multidimensional datasets like SWOT data
 
-
+# Import local modules
+import sys
+sys.path.append('./')
+import swot_utils
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Function: find_swaths
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -179,7 +182,7 @@ def download_passes(pass_ID, cycle="001", remote_path="swot_products/l3_karin_na
                     sftp_client.get(f"{remote_path_cycle}/{remote_file}", temp_file)
                     # Open and trim datasets
                     with xr.open_dataset(temp_file) as swath:
-                        trimmed_swath = tatsu_swot.subset(swath, lat_lims).load()
+                        trimmed_swath = swot_utils.subset(swath, lat_lims).load()
                         trimmed_filename = f"{remote_file[:-3]}_{trim_suffix}.nc"
                         trimmed_swath.to_netcdf(f"./{save_path}/{trimmed_filename}")
                     
