@@ -185,7 +185,13 @@ def download_passes(pass_ID, cycle="001", remote_path="swot_products/l3_karin_na
                         trimmed_swath = swot_utils.subset(swath, lat_lims).load()
                         trimmed_filename = f"{remote_file[:-3]}_{trim_suffix}.nc"
                         trimmed_swath.to_netcdf(f"./{save_path}/{trimmed_filename}")
-                    
+
+                    if os.path.isfile(temp_file):
+                        try:
+                            os.remove(temp_file)
+                        except:
+                            print(f"Having trouble removing {temp_file} from local directory")
+                        
                     print(f"Downloaded and trimmed {remote_file}")
             except Exception as e:
                 print(f"Failed to download {remote_file}. Error: {e}")
