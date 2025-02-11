@@ -30,7 +30,9 @@ import xrft
 
 def subset(data_in, lat_bounds, lon_bounds=None):
     """
-    Subsets SWOT data based on latitude and optional longitude bounds.
+    Subsets SWOT swaths based on latitude and optional longitude bounds.
+    Note that this script assumes that the swath is oriented roughly 
+    North-South since it uses simple array indexing; 
 
     Parameters
     ----------
@@ -95,6 +97,51 @@ def subset(data_in, lat_bounds, lon_bounds=None):
     subset_data = xr.Dataset(subset_vars, attrs=data_in.attrs)
     
     return subset_data
+
+
+
+def xr_subset(data_in, lat_bounds, lon_bounds):
+    """
+    Subsets an xarray dataset based on latitude and longitude bounds.
+    This script is for use on any arbitrary xarray "swath", i.e. 
+    a field with latitude and longitude coordinates. It uses xarray.where()
+    and requires loading an xarray.
+
+    Parameters
+    ----------
+    data_in : xarray.Dataset
+        Swath xarray dataset, must contain 'latitude' and 'longitude' coordinates.
+    lat_bounds : iterable
+        Two-element list or tuple specifying the north-south latitude range for subsetting.
+    lon_bounds : iterable
+        Two-element list or tuple specifying the east-west longitude range for subsetting.
+    
+    Returns
+    -------
+    subset_data : xarray.Dataset or None
+        Subset of the input dataset, or None if no valid subset can be created.
+    """
+    
+    # Create a boolean mask for latitude, selecting values within the given latitude bounds.
+    mask_lat = (data_in.latitude >= min(lat_bounds)) & (data_in.latitude <= max(lat_bounds))
+    
+    # Create a boolean mask for longitude, selecting values within the given longitude bounds.
+    mask_lon = (data_in.longitude >= min(lon_bounds)) & (data_in.longitude <= max(lon_bounds))
+
+    # Initialize the cropped dataset as None to handle cases where no data is found.
+    cropped_data = None
+    
+    try:
+        # Apply the latitude and longitude masks to the dataset using xarray's where() function.
+        # The drop=True argument removes values that do not meet the mask criteria.
+        cropped_data = data_in.where(mask_lat.compute() & mask_lon.compute(), drop=True)
+    except Exception as e:  # Catch any errors that occur during the subsetting process.
+        # Print error messages if no data is found within the specified bounds.
+        print(f"Unable to find data in latlon bounds lat: {lat_bounds}, lon: {lon_bounds}")
+        print(f"Exception: {e}")
+                
+    # Return the subset dataset, or None if an error occurred or no data matched the filters.
+    return cropped_data
 
 
 

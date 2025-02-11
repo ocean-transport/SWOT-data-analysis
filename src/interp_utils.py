@@ -95,6 +95,8 @@ def xyz2ll(x, y, z, lat_org, lon_org, alt_org, transformer1=TRANSFORMER_LL2XYZ, 
     # this is instead achieved by binning the data's lat/long variables onto the grid in the same way as is done for the variable of interest
     return lat, lon
 
+
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Lat/lon to ENU transformation
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -167,8 +169,8 @@ def grid_field_enu(x, y, ssh, n, L_x, L_y):
         If no data points fall into a given cell, the value in that cell will be NaN.
     """
     # Use scipy's binned_statistic_2d to calculate the mean of `ssh` within 2D grid bins.
-    # - `statistic='mean'` computes the average value in each bin.
-    # - `bins=n` specifies the number of bins along each axis.
+    # - `statistic = 'mean'` computes the average value in each bin.
+    # - `bins = n` specifies the number of bins along each axis.
     # - `range=[[-L_x/2, L_x/2], [-L_y/2, L_y/2]]` defines the spatial extent of the grid.
 
     gridded_data = np.rot90(
@@ -251,16 +253,16 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
             gridded_data = grid_field_enu(x, y, data_array.values.flatten(), n, L_x, L_y)
             gridded_vars[var_name] = (["x", "y"])
 
-        # Grid latitude, longitude, and ENU coordinates
-        lat_gridded = grid_field_enu(x, y, lats, n, L_x, L_y)
-        lon_gridded = grid_field_enu(x, y, lons, n, L_x, L_y)
+        # May want to revisit the xyz-latlon gridding..
+        # lat_gridded = grid_field_enu(x, y, lats, n, L_x, L_y)
+        # lon_gridded = grid_field_enu(x, y, lons, n, L_x, L_y)
 
         # Return a gridded xarray.Dataset
         return xr.Dataset(
             data_vars=gridded_vars,
             coords=dict(
-                latitude=(["x", "y"], lat_gridded),
-                longitude=(["x", "y"], lon_gridded),
+                latitude=(["x", "y"], lat_c),
+                longitude=(["x", "y"], lon_c),
                 x=(["x"], x_c),
                 y=(["y"], y_c),
             ),
@@ -269,18 +271,18 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
     elif isinstance(swath_data, xr.DataArray):
         # Interpolate the single data variable
         gridded_data = grid_field_enu(x, y, swath_data.values.flatten(), n, L_x, L_y)
-
-        # Grid latitude, longitude, and ENU coordinates
-        lat_gridded = grid_field_enu(x, y, lats, n, L_x, L_y)
-        lon_gridded = grid_field_enu(x, y, lons, n, L_x, L_y)
-
+        
+        # May want to revisit the xyz-latlon gridding..
+        # lat_gridded = grid_field_enu(x, y, lats, n, L_x, L_y)
+        # lon_gridded = grid_field_enu(x, y, lons, n, L_x, L_y)
+        
         # Return a gridded xarray.DataArray
         return xr.DataArray(
             data=gridded_data,
             dims=["x", "y"],
             coords=dict(
-                latitude=(["x", "y"], lat_gridded),
-                longitude=(["x", "y"], lon_gridded),
+                latitude=(["x", "y"], lat_c),
+                longitude=(["x", "y"], lon_c),
                 x=(["x"], x_c),
                 y=(["y"], y_c),
             ),
