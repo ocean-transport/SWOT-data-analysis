@@ -244,6 +244,9 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
     # Check if the input is a Dataset or a DataArray
     # If the input is a Dataset, grid each variable
     if isinstance(swath_data, xr.Dataset):
+        print("doing dataset")
+        print(swath_data.data_vars.items())
+        print("end")
         # Initialize a dictionary to hold gridded variables
         gridded_vars = {}
 
@@ -251,7 +254,7 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
         for var_name, data_array in swath_data.data_vars.items():
             # Grid the variable
             gridded_data = grid_field_enu(x, y, data_array.values.flatten(), n, L_x, L_y)
-            gridded_vars[var_name] = (["x", "y"])
+            gridded_vars[var_name] = (["x", "y"], gridded_data)
 
         # May want to revisit the xyz-latlon gridding..
         # lat_gridded = grid_field_enu(x, y, lats, n, L_x, L_y)
@@ -269,6 +272,7 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
         )
     # Elif the input is a Dataarray, grid the field
     elif isinstance(swath_data, xr.DataArray):
+        print("doing dataarray")
         # Interpolate the single data variable
         gridded_data = grid_field_enu(x, y, swath_data.values.flatten(), n, L_x, L_y)
         
