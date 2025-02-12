@@ -1,3 +1,5 @@
+<img src="Figures/Kuroshio_SSHA_DUACS_PSD_overlay-3.png" alt="sig0 over sea ice" width="600">
+
 # SWOT-data-analysis
 
 ⚠️ Formalizing a collection of scripts I (Tatsu) have been using to analyze SWOT data. More to come as I formalize things. Contributions welcome!
@@ -15,7 +17,7 @@
 
 1. [Plot 1-day repeat swaths with bathymetry](examples/003_Plot_1-day_repeat_swaths_off_of_Kuroshio.ipynb). Once you are able to download the data plotting the actual swaths is fairly straightforward using `cartopy` and `matplotlib`. This notebook also gives an example of using some helper scripts to open and automatically subset the SWOT data (referred to as "data_loaders").
 
-   <img src="Figures/plot_swaths_example.png" alt="sig0 over sea ice" width="200">
+   <img src="Figures/plot_swaths_example.png" alt="sig0 over sea ice" width="400">
 
 1. [Calculate along-swath spectrum](examples/004_Calculate_the_spectrum_of_the_kuroshio_swaths.ipynb). Once we have a swath loaded we can go ahead and calculate the along-swath SSH spectrum to get a sense for SWOT's effective resolution and how the SWOT noise floor changes over time. I still need to add some plots here and get the notebook working smoothly, but the code is here if you would like to try playing around with it. 
 
