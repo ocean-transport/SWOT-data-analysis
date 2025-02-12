@@ -1,9 +1,10 @@
-<img src="Figures/Kuroshio_SSHA_DUACS_PSD_overlay-3.png" alt="sig0 over sea ice" width="600">
+
 
 # SWOT-data-analysis
 
 ⚠️ Formalizing a collection of scripts I (Tatsu) have been using to analyze SWOT data. More to come as I formalize things. Contributions welcome!
 
+<img src="Figures/Kuroshio_SSHA_DUACS_PSD_overlay-3.png" alt="sig0 over sea ice" width="800">
 
 ## Getting started
 
