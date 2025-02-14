@@ -184,8 +184,15 @@ def download_passes(pass_ID, cycle="001", remote_path="swot_products/l3_karin_na
                     # Open and trim datasets
                     with xr.open_dataset(temp_file) as swath:
                         trimmed_swath = swot_utils.subset(swath, lat_lims).load()
-                        trimmed_filename = f"{remote_file[:-3]}_{trim_suffix}.nc"
-                        trimmed_swath.to_netcdf(f"./{save_path}/{trimmed_filename}")
+                            # The 'xr_subset' function returns a 'None' type if it can't find
+                            # data in the lat bounds. NOE: I'm using a 'try' block here so 
+                            # if a Nonetype is returned there may be other issues besides 
+                            # data outside of the lat-lon range.
+                        if isinstance(trimmed_swath, xr.Dataset):
+                            trimmed_filename = f"{remote_file[:-3]}_{trim_suffix}.nc"
+                            trimmed_swath.to_netcdf(f"./{save_path}/{trimmed_filename}")
+                        else:
+                            print(f"No valid data found in lats {lat_lims}")                            
 
                     if os.path.isfile(temp_file):
                         try:
@@ -196,8 +203,7 @@ def download_passes(pass_ID, cycle="001", remote_path="swot_products/l3_karin_na
                     print(f"Downloaded and trimmed {remote_file}")
             except Exception as e:
                 print(f"Failed to download {remote_file}. Error: {e}")
-                print(f"An error occured:", e)
-                print(traceback.format_exc)
+                print(traceback.print_exc(file=sys.stdout))
 
     return
     
