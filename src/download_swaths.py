@@ -26,6 +26,7 @@ import shapely.geometry as geometry  # For defining bounding boxes and geometry
 import paramiko  # For SFTP connections
 import os  # For file system operations
 import xarray as xr  # For working with multidimensional datasets like SWOT data
+import traceback 
 
 # Import local modules
 import sys
@@ -195,6 +196,8 @@ def download_passes(pass_ID, cycle="001", remote_path="swot_products/l3_karin_na
                     print(f"Downloaded and trimmed {remote_file}")
             except Exception as e:
                 print(f"Failed to download {remote_file}. Error: {e}")
+                print(f"An error occured:", e)
+                print(traceback.format_exc)
 
     return
     
