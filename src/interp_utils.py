@@ -205,7 +205,7 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
     swath_data : xarray.Dataset or xarray.DataArray
         The input data to be interpolated. If it is an xarray.Dataset, all variables
         will be gridded. If it is an xarray.DataArray, only the single variable will be gridded.
-        Must include 'latitude' and 'longitude' coordinates.
+        Must include 'latitude' and 'longitude' coordinates, either as 1D or 2D fields.
     lat0 : float
         The latitude to use as the origin for the ENU projection.
     lon0 : float
@@ -225,9 +225,19 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
         - If the input is a DataArray, returns a DataArray for the single variable.
         The output includes associated latitude, longitude, ENU X, and ENU Y coordinates.
     """
-    # Extract latitude and longitude from the input dataset or data array
-    lats = swath_data.latitude.values.flatten()
-    lons = (swath_data.longitude.values.flatten() % 360 + 180) % 360 - 180
+    
+    
+    # Extract latitude and longitude from the input dataset or data array. 
+    # Shift origin to Greenwhich to avoid dateline issues
+    if (swath_data.latitude.ndim < 2) or (swath_data.longitude.ndim < 2):
+        # Check if the lat-lon coordinates are gridded. If not (i.e. the fields are on 
+        # a regular grid) just broadcast them here.
+        lats, lons = xr.broadcast(swath_data.latitude, swath_data.longitude)
+        lats = lats.values.flatten()
+        lons = (lons.values.flatten() % 360 + 180) % 360 - 180
+    else:
+        lats = swath_data.latitude.values.flatten()
+        lons = (swath_data.longitude.values.flatten() % 360 + 180) % 360 - 180
 
     # Project latitude and longitude coordinates onto an ENU coordinate system
     x, y, z = ll2xyz(lats, lons, 0, lat0, lon0, 0)
@@ -244,9 +254,6 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
     # Check if the input is a Dataset or a DataArray
     # If the input is a Dataset, grid each variable
     if isinstance(swath_data, xr.Dataset):
-        print("doing dataset")
-        print(swath_data.data_vars.items())
-        print("end")
         # Initialize a dictionary to hold gridded variables
         gridded_vars = {}
 
@@ -272,7 +279,6 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
         )
     # Elif the input is a Dataarray, grid the field
     elif isinstance(swath_data, xr.DataArray):
-        print("doing dataarray")
         # Interpolate the single data variable
         gridded_data = grid_field_enu(x, y, swath_data.values.flatten(), n, L_x, L_y)
         
