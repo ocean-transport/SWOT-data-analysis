@@ -122,7 +122,7 @@ def download_passes(pass_ID, cycle="001", remote_path="swot_products/l3_karin_na
 
     Output
     ------
-    Saves files to `save_path` and logs skipped passes in "skipped_swaths.txt".
+    Saves files to `save_path` and logs skipped passes in 'skipped_swaths.txt'.
     """
     # Extract SWOT release version from remote_path (hacky, should improve)
     try:
@@ -188,11 +188,13 @@ def download_passes(pass_ID, cycle="001", remote_path="swot_products/l3_karin_na
                             # data in the lat bounds. NOE: I'm using a 'try' block here so 
                             # if a Nonetype is returned there may be other issues besides 
                             # data outside of the lat-lon range.
-                        if isinstance(trimmed_swath, xr.Dataset):
+                        print("trimmed swath",trimmed_swath)
+                        if trimmed_swath is None:
+                            print(f"No valid data found in lats {lat_lims}")     
+                            pass
+                        else:
                             trimmed_filename = f"{remote_file[:-3]}_{trim_suffix}.nc"
                             trimmed_swath.to_netcdf(f"./{save_path}/{trimmed_filename}")
-                        else:
-                            print(f"No valid data found in lats {lat_lims}")                            
 
                     if os.path.isfile(temp_file):
                         try:
@@ -211,7 +213,7 @@ def download_passes(pass_ID, cycle="001", remote_path="swot_products/l3_karin_na
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Function: clean_incomplete_files
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-def clean_incomplete_files(path, size=10):
+def clean_incomplete_files(path, size=0.05):
     """
     Deletes incomplete files in a directory based on file size.
 
@@ -221,6 +223,8 @@ def clean_incomplete_files(path, size=10):
         Path to the directory containing files to check.
     size : float
         Minimum file size (in MB) to consider as valid.
+        Setting to 50kb, since some of the Expert data is 
+        quite lightweight.
 
     Notes
     -----

@@ -32,8 +32,10 @@ def subset(data_in, lat_bounds, lon_bounds=None):
     """
     Subsets SWOT swaths based on latitude and optional longitude bounds.
     Note that this script assumes that the swath is oriented roughly 
-    North-South since it uses simple array indexing; 
-
+    North-South since it uses simple array indexing and treats it like
+    an NxM dimensiontal array. For more precise lat-lon-based subsetting 
+    use the "xr_subset()" function below.
+    
     Parameters
     ----------
     data_in : xarray.Dataset
@@ -66,6 +68,7 @@ def subset(data_in, lat_bounds, lon_bounds=None):
 
     # If bounding indices are the same, return None (no valid subset)
     if j0 == j1:
+        print(f"No data found in lat bounds")
         return None
 
     # Perform similar processing for longitude bounds, if provided
@@ -78,6 +81,7 @@ def subset(data_in, lat_bounds, lon_bounds=None):
         if i0 > i1:
             i0, i1 = i1, i0
         if i0 == i1:
+            print(f"No data found in lon bounds")
             return None
     else:
         # If no longitude bounds provided, set indices to None
@@ -113,7 +117,7 @@ def xr_subset(data_in, lat_bounds, lon_bounds=None):
     Subsets an xarray dataset based on latitude and longitude bounds.
     This script is for use on any arbitrary xarray "swath", i.e. 
     a field with latitude and longitude coordinates. It uses xarray.where()
-    and requires loading an xarray.
+    and requires loading everyting in xarray format.
 
     Parameters
     ----------
@@ -129,13 +133,12 @@ def xr_subset(data_in, lat_bounds, lon_bounds=None):
     subset_data : xarray.Dataset or None
         Subset of the input dataset, or None if no valid subset can be created.
     """
-    print(data_in.latitude.min().values,data_in.latitude.max().values,)
     # Create a boolean mask for latitude, selecting values within the given latitude bounds.
-    mask_lat = (data_in.latitude >= min(lat_bounds)) & (data_in.latitude <= max(lat_bounds))
+    mask_lat = (data_in.latitude >= min(lat_bounds)-1) & (data_in.latitude <= max(lat_bounds)+1)
 
     if lon_bounds != None:
         # Create a boolean mask for longitude, selecting values within the given longitude bounds.
-        mask_lon = (data_in.longitude >= min(lon_bounds)) & (data_in.longitude <= max(lon_bounds))
+        mask_lon = (data_in.longitude >= min(lon_bounds)-1) & (data_in.longitude <= max(lon_bounds)+1)
     else:
         mask_lon = None
 
@@ -149,15 +152,12 @@ def xr_subset(data_in, lat_bounds, lon_bounds=None):
         if mask_lon != None:
             # Do longitudinal cropping if you need to
             cropped_data = data_in.where(mask_lon.compute(), drop=True)
-        print("cropped_data")
-        print(cropped_data)
     except Exception as e:  # Catch any errors that occur during the subsetting process.
         # Print error messages if no data is found within the specified bounds.
         print(f"Unable to find data in latlon bounds lat: {lat_bounds}, lon: {lon_bounds}")
         print(f"Exception: {e}")
                 
     # Return the subset dataset, or None if an error occurred or no data matched the filters.
-    print("finished subset")
     return cropped_data
 
 
