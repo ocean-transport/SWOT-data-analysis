@@ -90,21 +90,21 @@ def subset(data_in, lat_bounds, lon_bounds=None):
 
     # Subset variables that share the latitude (and optionally longitude) dimensions
     subset_vars = {}
-    # Get rid of some weird variables
-    if "i_num_pixel" in data_in.data_vars:
-        data_in = data_in.drop_vars("i_num_pixel")
-    if "i_num_line" in data_in.data_vars:
-        data_in = data_in.drop_vars("i_num_line")
-    if "cross_track_distance" in data_in.data_vars:
-        data_in = data_in.drop_vars("cross_track_distance")
-        
     for varname, var in data_in.data_vars.items():
+        if var.dims[0] not in data_in.latitude.dims:
+            # Adding this step to remove any random variables that don't share
+            # coordinates with the SSHA data. This includes some variables in
+            # the Expert data (2/19/2025) like "i_num_pixels" and "i_num_line" 
+            # whose dimensions are indexed differently (i.e. wrt to the distance to 
+            # the nadir altimeter) rather than to the swath crosstrack / alongtrack 
+            # coordinates.
+            pass
         if (len(var.dims) == 2) and (lon_bounds is not None):  # Two-dimensional variables (lat-lon dependent)
             subset_vars[varname] = var[j0:j1, i0:i1]
         else:
             # For other variables, subset only by latitude
             subset_vars[varname] = var[j0:j1]
-
+            
     # Combine the subset variables into a new xarray Dataset
     subset_data = xr.Dataset(subset_vars, attrs=data_in.attrs)
     
