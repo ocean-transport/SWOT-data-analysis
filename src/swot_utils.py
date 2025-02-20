@@ -23,6 +23,7 @@ import xarray as xr
 import numpy as np
 import requests
 import scipy.interpolate
+import traceback
 
 import xrft
 
@@ -91,15 +92,19 @@ def subset(data_in, lat_bounds, lon_bounds=None):
     # Subset variables that share the latitude (and optionally longitude) dimensions
     subset_vars = {}
     for varname, var in data_in.data_vars.items():
-        if var.dims[0] not in data_in.latitude.dims:
+        if varname == "cross_track_distance":
+            # Remove cross_track_distance because it's weird
+            continue
+        elif var.dims[0] not in data_in.latitude.dims:
             # Adding this step to remove any random variables that don't share
             # coordinates with the SSHA data. This includes some variables in
             # the Expert data (2/19/2025) like "i_num_pixels" and "i_num_line" 
             # whose dimensions are indexed differently (i.e. wrt to the distance to 
             # the nadir altimeter) rather than to the swath crosstrack / alongtrack 
             # coordinates.
-            pass
-        if (len(var.dims) == 2) and (lon_bounds is not None):  # Two-dimensional variables (lat-lon dependent)
+            continue
+        elif (len(var.dims) == 2) and (lon_bounds is not None):  
+            # Two-dimensional variables (lat-lon dependent)
             subset_vars[varname] = var[j0:j1, i0:i1]
         else:
             # For other variables, subset only by latitude
@@ -138,8 +143,10 @@ def xr_subset(data_in, lat_bounds, lon_bounds=None):
 
     if lon_bounds != None:
         # Create a boolean mask for longitude, selecting values within the given longitude bounds.
+        mask_lon_flag = True
         mask_lon = (data_in.longitude >= min(lon_bounds)-1) & (data_in.longitude <= max(lon_bounds)+1)
     else:
+        mask_lon_flag = False
         mask_lon = None
 
     # Initialize the cropped dataset as None to handle cases where no data is found.
@@ -149,13 +156,15 @@ def xr_subset(data_in, lat_bounds, lon_bounds=None):
         # Apply the latitude and longitude masks to the dataset using xarray's where() function.
         # The drop=True argument removes values that do not meet the mask criteria.
         cropped_data = data_in.where(mask_lat.compute(), drop=True)
-        if mask_lon != None:
+        if mask_lon_flag:
             # Do longitudinal cropping if you need to
             cropped_data = data_in.where(mask_lon.compute(), drop=True)
     except Exception as e:  # Catch any errors that occur during the subsetting process.
         # Print error messages if no data is found within the specified bounds.
         print(f"Unable to find data in latlon bounds lat: {lat_bounds}, lon: {lon_bounds}")
         print(f"Exception: {e}")
+        print(f"traceback")
+        traceback.print_exc()
                 
     # Return the subset dataset, or None if an error occurred or no data matched the filters.
     return cropped_data
