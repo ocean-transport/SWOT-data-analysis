@@ -174,6 +174,9 @@ def grid_field_enu(x, y, ssh, n, L_x, L_y):
     # - `bins = n` specifies the number of bins along each axis.
     # - `range=[[-L_x/2, L_x/2], [-L_y/2, L_y/2]]` defines the spatial extent of the grid.
 
+    # Set NaN values to a negative number..
+    #ssh[np.isnan(ssh)] = -20000
+    
     gridded_data = np.rot90(
         stats.binned_statistic_2d(
             x, y, ssh,
@@ -196,7 +199,7 @@ def grid_field_enu(x, y, ssh, n, L_x, L_y):
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Wrapper for resampling lat/lon fields to a gridded ENU projection
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
+def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3, trim_edges=False):
     """
     Interpolates swath data onto a regular grid using an ENU projection.
     Thanks ChatGPT for writing the comments :,) 
@@ -217,6 +220,9 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
         The longitudinal range (extent) of the output grid in meters (default: 256,000 m).
     L_y : float, optional
         The latitudinal range (extent) of the output grid in meters (default: 256,000 m).
+    trim_edges: boolean, optional
+        Flag to trim the edges of the dataset to grid. You may need to do this for some 
+        of the SST data where the edge coordinates sometimes contain NaNs.
 
     Returns
     -------
@@ -226,8 +232,14 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
         - If the input is a DataArray, returns a DataArray for the single variable.
         The output includes associated latitude, longitude, ENU X, and ENU Y coordinates.
     """
-    
-    
+    print("i got here")
+    print(swath_data)
+    if trim_edges:
+        # Trim edges of the field. I needed to add this to account for
+        # some poorly gridded AVHRRF data.
+        # NOTE I'M ASSUMING THE DIM NAMES ARE nj AND ni. NEED TO FIX THIS!
+        swath_data = swath_data.isel(nj=slice(1,-1),ni=slice(1,-1))
+    print(swath_data)
     # Extract latitude and longitude from the input dataset or data array. 
     # Shift origin to Greenwhich to avoid dateline issues
     if (swath_data.latitude.ndim < 2) or (swath_data.longitude.ndim < 2):
@@ -260,7 +272,7 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3):
 
         # Process each variable in the Dataset
         for var_name, data_array in swath_data.data_vars.items():
-            # Grid the variable
+            # Grid the variable, assuming it's a 2D field!
             gridded_data = grid_field_enu(x, y, data_array.values.flatten(), n, L_x, L_y)
             gridded_vars[var_name] = (["x", "y"], gridded_data)
 

@@ -144,6 +144,8 @@ def xr_subset(data_in, lat_bounds, lon_bounds=None):
     if lon_bounds != None:
         # Create a boolean mask for longitude, selecting values within the given longitude bounds.
         mask_lon_flag = True
+        # Recast to Greenwich to avoid dateline issues
+        data_in["longitude"] = (data_in.longitude % 360 + 180) % 360 - 180
         mask_lon = (data_in.longitude >= min(lon_bounds)-1) & (data_in.longitude <= max(lon_bounds)+1)
     else:
         mask_lon_flag = False
@@ -151,20 +153,23 @@ def xr_subset(data_in, lat_bounds, lon_bounds=None):
 
     # Initialize the cropped dataset as None to handle cases where no data is found.
     cropped_data = None
-    
+
     try:
         # Apply the latitude and longitude masks to the dataset using xarray's where() function.
         # The drop=True argument removes values that do not meet the mask criteria.
-        cropped_data = data_in.where(mask_lat.compute(), drop=True)
         if mask_lon_flag:
-            # Do longitudinal cropping if you need to
-            cropped_data = data_in.where(mask_lon.compute(), drop=True)
+            # Combine lat and lon masks if you want longitudinal cropping
+            cropped_data = data_in.where(mask_lon & mask_lat, drop=True)
+        else:
+            cropped_data = data_in.where(mask_lat.compute(), drop=True)
     except Exception as e:  # Catch any errors that occur during the subsetting process.
         # Print error messages if no data is found within the specified bounds.
         print(f"Unable to find data in latlon bounds lat: {lat_bounds}, lon: {lon_bounds}")
-        print(f"Exception: {e}")
-        print(f"traceback")
+        #print(f"Exception: {e}")
+        #print(f"traceback")
         traceback.print_exc()
+        # Make sure you return NoneType if the subsetting didn't work.
+        cropped_data = None
                 
     # Return the subset dataset, or None if an error occurred or no data matched the filters.
     return cropped_data
