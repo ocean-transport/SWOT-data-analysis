@@ -78,7 +78,7 @@ def remap_quality_flags(swath):
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Function: load_cycle
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-def load_cycle(path, cycle="002", pass_ids=None, fields=None, subset=False, lats=[-90, 90]):
+def load_cycle(path, cycle="002", pass_ids=None, fields=None, subset=False, lat_lims=[-90, 90]):
     """
     Loads SWOT data for a specific cycle from locally stored NetCDF files.
 
@@ -94,7 +94,7 @@ def load_cycle(path, cycle="002", pass_ids=None, fields=None, subset=False, lats
         Fields (variables) to extract from the dataset. If None, all fields are loaded (default: None).
     subset : bool, optional
         Whether to subset the data spatially by latitude (default: False).
-    lats : list of float, optional
+    lat_lims : list of float, optional
         Latitude range [min_lat, max_lat] to use for subsetting if `subset` is True (default: [-90, 90]).
 
     Returns
@@ -143,7 +143,7 @@ def load_cycle(path, cycle="002", pass_ids=None, fields=None, subset=False, lats
 
             # Subset the data by latitude if requested
             if subset:
-                swath = swot_utils.subset(swath, lats)
+                swath = swot_utils.subset(swath, lat_lims)
 
             # Add cycle and pass ID as metadata attributes
             swath = swath.assign_attrs(

@@ -392,7 +392,7 @@ def download_raw_SST(data_short_name, save_path, lat_min, lat_max, lon_min, lon_
 
 
 def subset_raw_SST(file_path, lat, lon, save_name="test", save_path="./tests/", n=256, L_x=512e3, L_y=512e3, subset_deg=3,
-                     timedelta_for_mean=None, only_get_pixel_mask=False, quality_level=1):
+                     timedelta_for_mean=None, only_get_pixel_mask=False, quality_level=1, skip_NaN=False):
     """
     This function extracts a spatial subset from a set of satellite observations
     centered on a given latitude and longitude, interpolates them
@@ -425,6 +425,8 @@ def subset_raw_SST(file_path, lat, lon, save_name="test", save_path="./tests/", 
         If True, computes a pixel mask instead of averaging (default is False).
     quality_level : int, optional
         Minimum quality level threshold for filtering data (default is 1).
+    skip_NaN : bool, optional
+        If True, skip any 
     
     Returns
     -------
@@ -535,17 +537,30 @@ def subset_raw_SST(file_path, lat, lon, save_name="test", save_path="./tests/", 
             # Add a time dimension to the dataset
             interp_ds = interp_ds.expand_dims(dim={"time": 1},axis=0).assign_coords(time = ("time", [ds_subset.time.values]))
 
-            print(f"Successfully processed {file}")
-            arrs_out.append(interp_ds)
-            
+            # Awkward block to handle NaN values, I added the nested "if" statements 
+            # so I don't need perform the isnull() calc unless I want to look for NaNs.
+            if skip_NaN:
+                if interp_ds.quality_level.isnull().sum() > 10:
+                    print(f"Significant NaN values found in {file}, skipping for now")
+                else:
+                    print(f"Successfully processed {file}, appending to dataset")
+                    arrs_out.append(interp_ds)
+            else:
+                print(f"Successfully processed {file}, appending to dataset")
+                arrs_out.append(interp_ds)        
+                
         except Exception as e:
             # Handle any errors during processing and log the traceback
             print(e)
             traceback.print_exc()
             return # REMOVE FOR FINAL VERSION
 
-    # Concatenate all processed datasets along the time dimension
-    ds_out = xr.concat(arrs_out,dim="time")
+    # Skip empty datasets (for example if contaminated by NaN values)
+    if len (arrs_out) < 1:
+        ds_out = None
+    else:
+        # Concatenate all processed datasets along the time dimension
+        ds_out = xr.concat(arrs_out,dim="time")
     
     # Handle time averaging if requested
     if isinstance(timedelta_for_mean, type(None)):
@@ -566,9 +581,10 @@ def subset_raw_SST(file_path, lat, lon, save_name="test", save_path="./tests/", 
             return # REMOVE FOR FINAL VERSION
     else:
         print("timedelta_for_mean should be either None or np.timedelta64")
-    
-    print(f"Processed dataset saved at {save_path}{save_name}")
-    
+
+    if not isinstance(ds_out, type(None)):
+        print(f"Processed dataset saved at {save_path}{save_name}")
+
     return ds_out
     
 
