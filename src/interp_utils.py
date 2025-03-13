@@ -232,14 +232,11 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3, trim_ed
         - If the input is a DataArray, returns a DataArray for the single variable.
         The output includes associated latitude, longitude, ENU X, and ENU Y coordinates.
     """
-    print("i got here")
-    print(swath_data)
     if trim_edges:
         # Trim edges of the field. I needed to add this to account for
         # some poorly gridded AVHRRF data.
         # NOTE I'M ASSUMING THE DIM NAMES ARE nj AND ni. NEED TO FIX THIS!
         swath_data = swath_data.isel(nj=slice(1,-1),ni=slice(1,-1))
-    print(swath_data)
     # Extract latitude and longitude from the input dataset or data array. 
     # Shift origin to Greenwhich to avoid dateline issues
     if (swath_data.latitude.ndim < 2) or (swath_data.longitude.ndim < 2):
