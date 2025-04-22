@@ -2,7 +2,7 @@
 
 # SWOT-data-analysis
 
-⚠️ Formalizing a collection of scripts I (Tatsu) have been using to analyze SWOT data. More to come as I formalize things. Contributions welcome!
+⚠️ Formalizing a collection of scripts I (Tatsu) have been using to analyze SWOT data. More to come hopefully. Contributions welcome!
 
 <img src="Figures/Kuroshio_SSHA_DUACS_overlay_PSD_lowres.gif" alt="" width="1000">
 
