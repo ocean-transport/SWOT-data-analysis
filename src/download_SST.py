@@ -460,10 +460,10 @@ def download_raw_SST_earthaccess(data_short_name, save_path, sw_lon, sw_lat, ne_
         ds = xr.open_dataset(file)[["sea_surface_temperature","quality_level","l2p_flags"]].isel(time=0)
         if not os.path.exists(f"{save_path}/"):
             os.makedirs(f"{save_path}/",exist_ok=True)
-        if os.path.exists(f"{save_path}/{file.full_name.split("/")[-1]}.nc"):
-            print(f"Some form of {save_path}/{file.full_name.split("/")[-1]}.nc already exists! Skipping for now...")
+        if os.path.exists(f"{save_path}/{file.full_name.split("/")[-1]}"):
+            print(f"Some form of {save_path}/{file.full_name.split("/")[-1]} already exists! Skipping for now...")
         else:
-            ds.to_netcdf(f"{save_path}/{file.full_name.split("/")[-1]}.nc")
+            ds.to_netcdf(f"{save_path}/{file.full_name.split("/")[-1]}")
         
     return results
 
