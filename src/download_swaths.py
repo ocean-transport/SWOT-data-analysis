@@ -183,6 +183,8 @@ def download_passes(pass_ID, cycle="001", remote_path="swot_products/l3_karin_na
                     sftp_client.get(f"{remote_path_cycle}/{remote_file}", temp_file)
                     # Open and trim datasets
                     with xr.open_dataset(temp_file) as swath:
+                        if "cross_track_distance" in swath.keys():
+                            swath = swath.drop_vars("cross_track_distance")
                         if isinstance(lon_lims, list):
                             trimmed_swath = swot_utils.xr_subset(swath, lat_lims, lon_lims).load()          
                         else:

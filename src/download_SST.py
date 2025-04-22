@@ -20,9 +20,10 @@ import interp_utils
 
 import sys
 sys.path.append('../zarr-eosdis-store1/eosdis_store1/')
-sys.path.append('../../SWOT-data-analysis/src')
+sys.path.append('/home/tm3076/projects/NYU_SWOT_project/SWOT-data-analysis/src')
 import stores
 import dmrpp
+import earthaccess
 import swot_utils
 from importlib import reload
 import os
@@ -41,7 +42,7 @@ DATA_PROVIDER = 'POCLOUD'
 # Function to download and subset VIIRS satellite data
 def download_subset_grid_SST(data_short_name, save_path, lat, lon, name="", n=256, L_x=256e3, L_y=256e3,
                          start_time='2023-04-01T21:00:00Z', end_time='2023-07-28T20:59:59Z',
-                         timedelta_for_mean=None, only_get_pixel_mask=False, quality_level=1):
+                         timedelta_for_mean=None, only_get_pixel_mask=False, quality_level=1, filter=False):
     """
     Downloads and subsets SST satellite data from NASA's CMR (Common Metadata Repository).
     The function searches for granules (data files) within a specified latitude/longitude range
@@ -179,8 +180,20 @@ def download_subset_grid_SST(data_short_name, save_path, lat, lon, name="", n=25
             if not isinstance(ds_subset, xr.Dataset):
                 print("no valid data in bounds")
                 continue
-
-            if not only_get_pixel_mask:
+                
+            if not only_get_pixel_mask and not filter:
+                # If no filtering just pass the sst + quality_level dataset through..
+                dataset_to_grid = ds_subset
+                
+            elif not only_get_pixel_mask and filter:
+                # Apply quality control filtering on the SST (Sea Surface Temperature) variable
+                sst_da = ds_subset.sea_surface_temperature
+                quality_level_da = ds_subset.quality_level
+                # Only retain SST values with quality level > 1, replacing others with NaN
+                sst_da_q2 = sst_da.where(quality_level_da > quality_level, other=np.nan).rename("filtered_sea_surface_temperature")
+                dataset_to_grid = xr.merge([sst_da,quality_level_da,sst_da_q2])
+                
+            elif not only_get_pixel_mask:
                 # Apply quality control filtering on the SST (Sea Surface Temperature) variable
                 sst_da = ds_subset.sea_surface_temperature
                 quality_level_da = ds_subset.quality_level
@@ -188,7 +201,7 @@ def download_subset_grid_SST(data_short_name, save_path, lat, lon, name="", n=25
                 # Only retain SST values with quality level > 1, replacing others with NaN
                 sst_da_q2 = sst_da.where(quality_level_da > quality_level, other=np.nan).rename("filtered_sea_surface_temperature")
                 dataset_to_grid = xr.merge([sst_da,quality_level_da,sst_da_q2])
-           
+
             elif only_get_pixel_mask:
                 # Only use pixels with quality level above 1
                 dataset_to_grid = ds_subset.quality_level.where(ds_subset.quality_level > 1,other=np.nan)
@@ -238,8 +251,8 @@ def download_subset_grid_SST(data_short_name, save_path, lat, lon, name="", n=25
         print("Timedelta_for_mean should be either Nonetype or np.timedelta64")
 
     #print("line 240", timeit.default_timer() - start_timeit)  
-    print("{save_path}{name}")
     ds_out.to_netcdf(f"{save_path}{name}")
+    print(f"saved {save_path}{name}")
     #print("line 243", timeit.default_timer() - start_timeit)  
 
     return ds_out
@@ -362,9 +375,11 @@ def download_raw_SST(data_short_name, save_path, lat_min, lat_max, lon_min, lon_
         if os.path.isfile(f"{save_path}{save_name}"):
             print(f"Some form of {save_path}{save_name} already exists! Skipping for now...")
             continue
+        # Create the save path if it doesn't already exist
+        elif not os.path.isdir(save_path):
+            os.makedirs(save_path, exist_ok=False)
         
         print(f"Pulling {url}")
-    
         try:
             if not only_get_pixel_mask:
                 # Select the "first" timestep to get rid of the time dimension for now.. is this really necessary?
@@ -385,9 +400,74 @@ def download_raw_SST(data_short_name, save_path, lat_min, lat_max, lon_min, lon_
             print(e)
             traceback.print_exc()
 
-
-
     return 
+
+
+
+# Function to download and subset VIIRS satellite SST data using NASA Earthdata access
+def download_raw_SST_earthaccess(data_short_name, save_path, sw_lon, sw_lat, ne_lat, ne_lon,
+                                  start_time='2023-04-01T21:00:00Z', end_time='2023-07-28T20:59:59Z',
+                                  only_get_pixel_mask=False, quality_level=1):
+    """
+    Downloads and subsets Sea Surface Temperature (SST) satellite data from NASA's 
+    Common Metadata Repository (CMR) using the Earthaccess client.
+
+    This function searches for data granules (e.g., VIIRS Level-2 products) within a 
+    geographic bounding box and a specified time range. It then filters and extracts
+    SST-related variables, optionally filtering by quality level, and saves the data 
+    in NetCDF format.
+
+    Parameters
+    ----------
+    data_short_name : str
+        The short name of the dataset (e.g., "VIIRS_NPP-OSPO-L2P-v2.41") to retrieve.
+    save_path : str
+        Path to the local directory where the output NetCDF files will be saved.
+    sw_lon : float
+        Longitude of the southwest corner of the bounding box.
+    sw_lat : float
+        Latitude of the southwest corner of the bounding box.
+    ne_lat : float
+        Latitude of the northeast corner of the bounding box.
+    ne_lon : float
+        Longitude of the northeast corner of the bounding box.
+    start_time : str, optional
+        Start time (UTC) for the search period in ISO format. Default is 2023-04-01.
+    end_time : str, optional
+        End time (UTC) for the search period in ISO format. Default is 2023-07-28.
+    only_get_pixel_mask : bool, optional
+        If True, only retrieve and save a pixel mask based on `quality_level`. 
+        If False, download full SST and associated quality data. Default is False.
+    quality_level : int, optional
+        The minimum acceptable quality level for filtering SST pixels. Currently unused 
+        in this function but intended for future mask filtering logic. Default is 1.
+
+    Returns
+    -------
+    list
+        List of search result objects (metadata for matched data granules).
+    """
+
+    results = earthaccess.search_data(
+        short_name=data_short_name,
+        bounding_box=(sw_lon,sw_lat,ne_lat,ne_lon),
+        temporal=(start_time,end_time),
+        count=-1)
+    
+    for result in results:
+        file = earthaccess.open([result])[0]
+        print(f"Found {file}, attempting download..")
+        ds = xr.open_dataset(file)[["sea_surface_temperature","quality_level","l2p_flags"]].isel(time=0)
+        if not os.path.exists(f"{save_path}/"):
+            os.makedirs(f"{save_path}/",exist_ok=True)
+        if os.path.exists(f"{save_path}/{file.full_name.split("/")[-1]}.nc"):
+            print(f"Some form of {save_path}/{file.full_name.split("/")[-1]}.nc already exists! Skipping for now...")
+        else:
+            ds.to_netcdf(f"{save_path}/{file.full_name.split("/")[-1]}.nc")
+        
+    return results
+
+
 
 
 
