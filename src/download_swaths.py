@@ -165,7 +165,7 @@ def download_passes(pass_ID, cycle="001", remote_path="swot_products/l3_karin_na
                 continue  # Skip non-matching files
 
             print(f"Found remote file: {remote_file}")
-            local_file_path = f"./{save_path}/{remote_file}"
+            local_file_path = f"{save_path}/{remote_file}"
 
             # Skip if file already exists locally
             if os.path.isfile(local_file_path):
@@ -199,7 +199,7 @@ def download_passes(pass_ID, cycle="001", remote_path="swot_products/l3_karin_na
                             pass
                         else:
                             trimmed_filename = f"{remote_file[:-3]}_{trim_suffix}.nc"
-                            trimmed_swath.to_netcdf(f"./{save_path}/{trimmed_filename}")
+                            trimmed_swath.to_netcdf(f"{save_path}/{trimmed_filename}")
 
                     if os.path.isfile(temp_file):
                         try:
