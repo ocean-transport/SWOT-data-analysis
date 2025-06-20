@@ -121,7 +121,7 @@ def load_cycle(path, cycle="002", pass_ids=None, fields=None, subset=False, lat_
         # If pass IDs are specified, filter for matching files
         swot_passes = []
         for pass_id in pass_ids:
-            passes = [f for f in os.listdir(f"{path}/cycle_{cycle}") if f"Unsmoothed_{cycle}_{pass_id}" in f]
+            passes = [f for f in os.listdir(f"{path}/cycle_{cycle}") if f"{cycle}_{pass_id}" in f]
             swot_passes += passes  # Append matching files to the list
     
     # Sort the passes by pass ID (6th element in the file name, after splitting by '_')

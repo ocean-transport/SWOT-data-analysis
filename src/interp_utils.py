@@ -145,7 +145,7 @@ def ll2xyz(lat, lon, alt, lat_org, lon_org, alt_org, transformer=TRANSFORMER_LL2
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # General gridding function
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-def grid_field_enu(x, y, ssh, n, L_x, L_y):
+def grid_field_enu(x, y, ssh, n, L_x, L_y, statistic="mean"):
     """
     Interpolates a field onto a 2D grid in the ENU tangent plane using a statistical binning approach.
     Source: NeurOST (Scott Martin, UW)
@@ -161,6 +161,8 @@ def grid_field_enu(x, y, ssh, n, L_x, L_y):
         The number of bins along each axis of the output grid.
     L_x, L_y : float
         The extents (in meters) of the gridded region along the x (East) and y (North) axes.
+    statistic : str
+        Optional, binning method (see https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.binned_statistic_2d.html)
 
     Returns
     -------
@@ -180,7 +182,7 @@ def grid_field_enu(x, y, ssh, n, L_x, L_y):
     gridded_data = np.rot90(
         stats.binned_statistic_2d(
             x, y, ssh,
-            statistic='mean',
+            statistic=statistic,
             bins=n,
             range=[[-L_x / 2, L_x / 2], [-L_y / 2, L_y / 2]]
         )[0], k=-1
@@ -270,6 +272,11 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3, trim_ed
         # Process each variable in the Dataset
         for var_name, data_array in swath_data.data_vars.items():
             # Grid the variable, assuming it's a 2D field!
+            if var_name == "quality_level":
+                # This is a small substep to filter for quality level. Sort of a difficult quantity to
+                # choose since we want all of the data we can get... Leaving as "min" for now to
+                # flag pixels that are contaminated.
+                gridded_data = grid_field_enu(x, y, data_array.values.flatten(), n, L_x, L_y,"min")
             gridded_data = grid_field_enu(x, y, data_array.values.flatten(), n, L_x, L_y)
             gridded_vars[var_name] = (["x", "y"], gridded_data)
 

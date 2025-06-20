@@ -154,7 +154,7 @@ def plot_cycle(swaths,fields=["ssha"],title="Example Swaths August 2024 (Cycle 4
                               "s":1,"marker":".","alpha":1,"linewidths":0},
                cmaps=[cm.balance],dpi=100,
                set_extent=False,extent_lims=[-180,180,-90,90],
-               axes=[None], plot_bathymetry=True,
+               axes=[None], plot_bathymetry=True, add_labels=False,
               ):
     """
     Plots SWOT swaths for a single cycle with optional bathymetry and other geographic features.
@@ -213,8 +213,10 @@ def plot_cycle(swaths,fields=["ssha"],title="Example Swaths August 2024 (Cycle 4
     # Add labels to keep track of specific swaths
     swath_labels = []
     for swath in swaths:
-        label_lat = np.around(swath.latitude[-1,:].min().values,2)
-        label_lon = np.around(swath.longitude[-1,:].min().values,2)
+        #label_lat = np.around(swath.latitude[-1,:].min().values,2)
+        #label_lon = np.around(swath.longitude[-1,:].min().values,2)
+        label_lat = np.around(swath.latitude[:,:].mean().values,2)
+        label_lon = np.around(swath.longitude[:,:].mean().values,2)        
         if label_lon > 180:
             label_lon = label_lon - 360
         label_cycle = swath.cycle
@@ -243,7 +245,7 @@ def plot_cycle(swaths,fields=["ssha"],title="Example Swaths August 2024 (Cycle 4
     for i, ax in enumerate(axs):
         # Add some geographic features
         #ax.add_feature(cfeature.COASTLINE.with_scale('10m'))
-        #ax.add_feature(cfeature.LAND, edgecolor='none', facecolor='lightgray')
+        
         # Add bathymetry
         # Iterate and plot feature for each depth level
         if plot_bathymetry:
@@ -251,6 +253,7 @@ def plot_cycle(swaths,fields=["ssha"],title="Example Swaths August 2024 (Cycle 4
                 ax.add_geometries(shp_dict[depth_str].geometries(),
                                   crs=ccrs.PlateCarree(),
                                   color=colors_depths[j])
+        ax.add_feature(cfeature.LAND, edgecolor='none', facecolor='lightgray',zorder=0)
     
         # Normalize the colorbar to keep it constant between plots
         mynorm = plt.Normalize(vmin=vmins[i], vmax=vmaxes[i], clip=True)
@@ -260,7 +263,7 @@ def plot_cycle(swaths,fields=["ssha"],title="Example Swaths August 2024 (Cycle 4
         cax = ax.scatter(swaths[0].longitude[:,:], swaths[0].latitude[:,:], c=swaths[0][fields[i]][:,:], 
                          cmap=cmaps[i], **ssha_plot_kw, zorder=10, norm=mynorm)
         # add colorbar and gridlines
-        cbar = plt.colorbar(cax, ax=ax, shrink=0.4, extend="both", pad=0.1)
+        cbar = plt.colorbar(cax, ax=ax, shrink=0.2, extend="both", pad=0.1)
         # Specify cbar title size / orientation
         cbar.set_label(cbar_titles[i],rotation=270,fontsize=30,labelpad=50)
         
@@ -277,14 +280,16 @@ def plot_cycle(swaths,fields=["ssha"],title="Example Swaths August 2024 (Cycle 4
             cbar.ax.set_yticklabels(swaths[0].quality_flag.flag_meanings.split(" "))
     
         # Add labels
-        for swath_label in swath_labels:
-            txt = ax.text(swath_label["label_lon"],swath_label["label_lat"],
-                          (f"Cycle {swath_label["label_cycle"]} \n"
-                          + f"Pass #{swath_label["label_pass"]} \n"
-                          + f"{swath_label["label_time"][:10]} \n"
-                          + f"{swath_label["label_time"][10:19]} " ),
-                         fontsize=10,weight='bold',zorder=len(swaths)+30)
-            txt.set_bbox(dict(facecolor='white', alpha=1, edgecolor='k'))
+        if add_labels:
+            for k, swath_label in enumerate(swath_labels):
+                txt = ax.text(swath_label["label_lon"]-1,swath_label["label_lat"]+k%3-k%2,
+                              (f"Cycle {swath_label["label_cycle"]} \n"
+                              + f"Pass #{swath_label["label_pass"]}"
+                              #+ f"{swath_label["label_time"][:10]} \n"
+                              #+ f"{swath_label["label_time"][10:19]} " 
+                                ),
+                             fontsize=5,weight='bold',zorder=len(swaths)+30,color="w")
+                txt.set_bbox(dict(facecolor='none', alpha=1, edgecolor='none'))
 
         # Title the subplot with the field you are plotting
         ax.set_title(f"{fields[i]}",fontsize=45)

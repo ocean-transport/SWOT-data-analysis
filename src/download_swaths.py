@@ -18,6 +18,7 @@ Dependencies:
     - xarray
     - paramiko
     - geopandas
+    - shapely
 """
 
 # Import Python libraries
