@@ -166,9 +166,10 @@ def run_download(sw_corner, ne_corner, cycles, remote_path, save_path, orbit_fil
             print(f"Failed to fetch or parse catalog for cycle {cycle_str}: {e}")
             continue
 
+        product = remote_path.split("/")[-1]
         for pass_id in pass_IDs_list:
             for nc_file in nc_files:
-                if pass_id in nc_file.split(f"{product}_{cycle_str}")[1].split("_")[1]:
+                if pass_id in nc_file.split(f"{product}_{cycle_str}_")[1].split("_")[1]:
                     download_url = f"{remote_fileserver_path}/cycle_{cycle_str}/{nc_file}"
                     save_path = os.path.join(save_path, f"cycle_{cycle_str}")
                     try:

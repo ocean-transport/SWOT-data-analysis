@@ -281,8 +281,6 @@ def grid_everything(swath_data, lat0, lon0, n=256, L_x=256e3, L_y=256e3, trim_ed
             gridded_vars[var_name] = (["x", "y"], gridded_data)
 
         # May want to revisit the xyz-latlon gridding..
-        # lat_gridded = grid_field_enu(x, y, lats, n, L_x, L_y)
-        # lon_gridded = grid_field_enu(x, y, lons, n, L_x, L_y)
 
         # Return a gridded xarray.Dataset
         return xr.Dataset(

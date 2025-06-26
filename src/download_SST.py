@@ -2,6 +2,7 @@ import xarray as xr
 import numpy as np
 import glob
 import zarr 
+import dask
 
 # Other Python libraries
 import requests
@@ -80,9 +81,10 @@ def download_raw_SST_earthaccess(data_short_name, save_path, sw_lon, sw_lat, ne_
     list
         List of search result objects (metadata for matched data granules).
     """
-
+    print("data_short_name",data_short_name)
     results = earthaccess.search_data(
         short_name=data_short_name,
+        cloud_hosted=True,
         bounding_box=(sw_lon,sw_lat,ne_lat,ne_lon),
         temporal=(start_time,end_time),
         count=-1)
@@ -91,14 +93,20 @@ def download_raw_SST_earthaccess(data_short_name, save_path, sw_lon, sw_lat, ne_
         for result in results:
             file = earthaccess.open([result])[0]
             print(f"Found {file}, attempting download..")
-            ds = xr.open_dataset(file)[["sea_surface_temperature","quality_level","l2p_flags"]].isel(time=0)
+            ds = xr.open_dataset(file)[["analysed_sst","analysis_error","mask"]]
             if not os.path.exists(f"{save_path}/"):
                 os.makedirs(f"{save_path}/",exist_ok=True)
             if os.path.exists(f"{save_path}/{file.full_name.split("/")[-1]}"):
                 print(f"Some form of {save_path}/{file.full_name.split("/")[-1]} already exists! Skipping for now...")
             else:
-                ds.to_netcdf(f"{save_path}/{file.full_name.split("/")[-1]}")
-                
+                # Add some stuff to ensure correct time encoding
+                for var in ds.variables:
+                    if "time" in var or "timedelta" in var:
+                        ds[var].encoding["dtype"] = "int64"
+                if "MUR" in data_short_name:
+                    ds.chunk({"lat":1000,"lon":1000}).to_netcdf(f"{save_path}/{file.full_name.split("/")[-1]}")
+                else:
+                    ds.to_netcdf(f"{save_path}/{file.full_name.split("/")[-1]}")
     return results
 
 
