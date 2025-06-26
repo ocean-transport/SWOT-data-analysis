@@ -9,7 +9,11 @@ mkdir -p "$BASE_SAVE_DIR"
 URLS=(
     "https://www.aviso.altimetry.fr/fileadmin/documents/missions/Swot/sph_science_nadir.zip"
     "https://www.aviso.altimetry.fr/fileadmin/documents/missions/Swot/sph_science_swath.zip"
+<<<<<<< HEAD
+    "https://www.aviso.altimetry.fr/fileadmin/documents/missions/Swot/shp_calval_nadir.zip"
+=======
     "https://www.aviso.altimetry.fr/fileadmin/documents/missions/Swot/sph_calval_nadir.zip"
+>>>>>>> 56c1d045363c40728496cf53a38669b9ea3f951d
     "https://www.aviso.altimetry.fr/fileadmin/documents/missions/Swot/sph_calval_swath.zip"
 )
 
