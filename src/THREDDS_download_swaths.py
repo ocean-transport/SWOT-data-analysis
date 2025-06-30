@@ -29,32 +29,18 @@ Dependencies:
 
 import os
 import argparse
-<<<<<<< HEAD
-=======
-import warnings
->>>>>>> 56c1d045363c40728496cf53a38669b9ea3f951d
 import requests
 import xml.etree.ElementTree as ET # For parsing the THREDDS 
 import tqdm
 import geopandas as gpd  # For working with geospatial data
 import shapely.geometry as geometry  # For defining bounding boxes and geometry
 from itertools import groupby
-<<<<<<< HEAD
 import warnings
 warnings.simplefilter("default")
-=======
->>>>>>> 56c1d045363c40728496cf53a38669b9ea3f951d
-
 import sys
 sys.path.append('../../SWOT-data-analysis/src')
 import download_swaths
 
-<<<<<<< HEAD
-=======
-# Turn off SSL warnings (optional)
-warnings.filterwarnings("ignore")
-
->>>>>>> 56c1d045363c40728496cf53a38669b9ea3f951d
 # ─────────────────────────────────────────────
 # XML Catalog Parsing
 # ─────────────────────────────────────────────
@@ -150,17 +136,12 @@ def run_download(sw_corner, ne_corner, cycles, remote_path, save_path, orbit_fil
         remote_path = remote_path.split("catalog.html")[0]
     remote_catalog_path = f"https://tds-odatis.aviso.altimetry.fr/thredds/catalog/{remote_path}"
     remote_fileserver_path = f"https://tds-odatis.aviso.altimetry.fr/thredds/fileServer/{remote_path}"
-<<<<<<< HEAD
     # Get the data product you are accessing. This should be the last string in the URL
     product = remote_path.split("/")[-1]
     print(f"product {product}")
     if product not in ["Basic","Expert","Unsmoothed","WindWave"]:
         warnings.warn(f"Can't find {product} in expected products ['Basic','Expert','Unsmoothed','WindWave']. \
                         Check that the data product exists at {remote_catalog_path}.",UserWarning)
-
-=======
-    
->>>>>>> 56c1d045363c40728496cf53a38669b9ea3f951d
     # Split the cycles into calval and science
     cycle_split = []
     for k, g in groupby(sorted(cycles), lambda x: int(x) >= 472):
@@ -179,24 +160,12 @@ def run_download(sw_corner, ne_corner, cycles, remote_path, save_path, orbit_fil
     for cycle in cycles:
         cycle_str = str(cycle).zfill(3)
         catalog_url = f"{remote_catalog_path}/cycle_{cycle_str}/catalog.xml"
-<<<<<<< HEAD
         print(f"Fetching catalog for {product} cycle {cycle_str}...")
         try:
             nc_files = list_nc_files_from_thredds_catalog(catalog_url, ssh_kwargs)
         except Exception as e:
             print(f"Failed to fetch or parse catalog for {product} cycle {cycle_str}: {e}")
             continue
-=======
-        print(f"Fetching catalog for cycle {cycle_str}...")
-
-        try:
-            nc_files = list_nc_files_from_thredds_catalog(catalog_url, ssh_kwargs)
-        except Exception as e:
-            print(f"Failed to fetch or parse catalog for cycle {cycle_str}: {e}")
-            continue
-
-        product = remote_path.split("/")[-1]
->>>>>>> 56c1d045363c40728496cf53a38669b9ea3f951d
         for pass_id in pass_IDs_list:
             for nc_file in nc_files:
                 if pass_id in nc_file.split(f"{product}_{cycle_str}_")[1].split("_")[1]:
